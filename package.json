@@ -1,0 +1,22 @@
+{
+  "name": "markdown-visualizer",
+  "version": "1.0.0",
+  "description": "Hochwertige Markdown-Visualisierung als Desktop-Anwendung",
+  "main": "src/main/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable"
+  },
+  "author": "Markdown Visualizer",
+  "license": "MIT",
+  "dependencies": {
+    "highlight.js": "^11.10.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

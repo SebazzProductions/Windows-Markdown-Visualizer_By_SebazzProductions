@@ -1,0 +1,28 @@
+appId: com.markdownvisualizer.app
+productName: Markdown Visualizer
+directories:
+  output: dist
+files:
+  - src/**/*
+  - node_modules/**/*
+  - package.json
+win:
+  target: nsis
+  icon: build/icon.ico
+  fileAssociations:
+    - ext: md
+      name: Markdown File
+      description: Markdown Document
+      role: Viewer
+      icon: build/icon.ico
+    - ext: markdown
+      name: Markdown File
+      description: Markdown Document
+      role: Viewer
+      icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  perMachine: false

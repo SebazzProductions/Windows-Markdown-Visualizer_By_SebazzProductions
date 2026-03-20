@@ -1,0 +1,162 @@
+/* =============================================
+   THEMES - CSS Custom Properties
+   ============================================= */
+
+:root,
+[data-theme="light"] {
+  /* Background */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fc;
+  --bg-tertiary: #f0f2f7;
+  --bg-elevated: #ffffff;
+  
+  /* Sidebar */
+  --sidebar-bg: #f5f6fa;
+  --sidebar-border: #e2e5ef;
+  --sidebar-hover: #ebedf5;
+  
+  /* Text */
+  --text-primary: #1a1c2e;
+  --text-secondary: #5a5d7a;
+  --text-tertiary: #8b8fa8;
+  --text-inverse: #ffffff;
+  
+  /* Accent */
+  --accent-color: #4f6ef7;
+  --accent-hover: #3d5bd9;
+  --accent-light: #eef1fe;
+  --accent-bg: rgba(79, 110, 247, 0.08);
+  
+  /* Borders */
+  --border-color: #e2e5ef;
+  --border-light: #eff0f5;
+  
+  /* Code */
+  --code-bg: #f4f5f9;
+  --code-border: #e2e5ef;
+  --code-text: #d63384;
+  --code-block-bg: #282c34;
+  --code-block-text: #abb2bf;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  
+  /* Modal */
+  --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --modal-bg: #ffffff;
+  
+  /* Toolbar */
+  --toolbar-bg: #ffffff;
+  --toolbar-border: #e2e5ef;
+  
+  /* Scrollbar */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #c8cad8;
+  --scrollbar-thumb-hover: #a8abbe;
+  
+  /* Welcome */
+  --welcome-bg: linear-gradient(135deg, #f5f7ff 0%, #f0f2ff 100%);
+  --welcome-icon-color: #4f6ef7;
+  
+  /* Blockquote */
+  --blockquote-border: #4f6ef7;
+  --blockquote-bg: #f5f7ff;
+  --blockquote-text: #5a5d7a;
+  
+  /* Table */
+  --table-border: #e2e5ef;
+  --table-header-bg: #f5f6fa;
+  --table-row-hover: #f8f9fc;
+  --table-stripe: #fafbfd;
+  
+  /* Misc */
+  --hr-color: #e2e5ef;
+  --kbd-bg: #f4f5f9;
+  --kbd-border: #d1d4de;
+  --mark-bg: #fff3cd;
+  --drop-overlay-bg: rgba(79, 110, 247, 0.1);
+}
+
+[data-theme="dark"] {
+  /* Background */
+  --bg-primary: #13141f;
+  --bg-secondary: #1a1b2e;
+  --bg-tertiary: #222338;
+  --bg-elevated: #1e1f33;
+  
+  /* Sidebar */
+  --sidebar-bg: #181928;
+  --sidebar-border: #2a2b42;
+  --sidebar-hover: #252640;
+  
+  /* Text */
+  --text-primary: #e4e5f1;
+  --text-secondary: #9a9cb8;
+  --text-tertiary: #6b6d88;
+  --text-inverse: #13141f;
+  
+  /* Accent */
+  --accent-color: #6b8aff;
+  --accent-hover: #8da4ff;
+  --accent-light: #1e2444;
+  --accent-bg: rgba(107, 138, 255, 0.1);
+  
+  /* Borders */
+  --border-color: #2a2b42;
+  --border-light: #232438;
+  
+  /* Code */
+  --code-bg: #1e1f33;
+  --code-border: #2a2b42;
+  --code-text: #ff7eb6;
+  --code-block-bg: #0d0e17;
+  --code-block-text: #abb2bf;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  
+  /* Modal */
+  --modal-backdrop: rgba(0, 0, 0, 0.6);
+  --modal-bg: #1e1f33;
+  
+  /* Toolbar */
+  --toolbar-bg: #181928;
+  --toolbar-border: #2a2b42;
+  
+  /* Scrollbar */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #3a3b55;
+  --scrollbar-thumb-hover: #4a4b65;
+  
+  /* Welcome */
+  --welcome-bg: linear-gradient(135deg, #13141f 0%, #1a1b30 100%);
+  --welcome-icon-color: #6b8aff;
+  
+  /* Blockquote */
+  --blockquote-border: #6b8aff;
+  --blockquote-bg: #1a1d35;
+  --blockquote-text: #9a9cb8;
+  
+  /* Table */
+  --table-border: #2a2b42;
+  --table-header-bg: #1e1f33;
+  --table-row-hover: #222338;
+  --table-stripe: #1a1b2e;
+  
+  /* Misc */
+  --hr-color: #2a2b42;
+  --kbd-bg: #1e1f33;
+  --kbd-border: #3a3b55;
+  --mark-bg: #4a3f1f;
+  --drop-overlay-bg: rgba(107, 138, 255, 0.1);
+}
+
+/* Theme icon visibility */
+[data-theme="light"] .icon-moon { display: none; }
+[data-theme="light"] .icon-sun { display: block; }
+[data-theme="dark"] .icon-sun { display: none; }
+[data-theme="dark"] .icon-moon { display: block; }
