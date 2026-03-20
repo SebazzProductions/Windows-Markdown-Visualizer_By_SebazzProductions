@@ -3,6 +3,8 @@ const path = require('path');
 const { setupIpcHandlers } = require('./ipc-handlers');
 const { createAppMenu } = require('./menu');
 
+app.setAppUserModelId('com.markdownvisualizer.app');
+
 let mainWindow = null;
 let fileToOpen = null;
 
@@ -57,11 +59,6 @@ function createWindow() {
   // Graceful show when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    // Send initial file if opened via "Open with"
-    if (fileToOpen) {
-      mainWindow.webContents.send('file-opened', fileToOpen);
-      fileToOpen = null;
-    }
   });
 
   // Open external links in default browser
@@ -92,11 +89,17 @@ app.whenReady().then(() => {
   fileToOpen = extractFilePathFromArgs(process.argv);
 
   registerProtocols();
-  setupIpcHandlers();
+  setupIpcHandlers(getAndClearFileToOpen);
 
   const win = createWindow();
   createAppMenu(win);
 });
+
+function getAndClearFileToOpen() {
+  const f = fileToOpen;
+  fileToOpen = null;
+  return f;
+}
 
 app.on('window-all-closed', () => {
   app.quit();

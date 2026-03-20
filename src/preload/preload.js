@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('api', {
   renderMarkdown: (source) => ipcRenderer.invoke('render-markdown', source),
   renderMarkdownToHtml: (source) => ipcRenderer.invoke('render-markdown-html', source),
 
+  // Initial file (from command line / file association)
+  getInitialFile: () => ipcRenderer.invoke('get-initial-file'),
+
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),

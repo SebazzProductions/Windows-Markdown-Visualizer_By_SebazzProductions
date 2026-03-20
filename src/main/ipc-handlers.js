@@ -3,7 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const { renderMarkdown, renderMarkdownToHtml } = require('./markdown-engine');
 
-function setupIpcHandlers() {
+function setupIpcHandlers(getInitialFile) {
+  // Initial file (opened via file association / command line)
+  ipcMain.handle('get-initial-file', () => {
+    return getInitialFile ? getInitialFile() : null;
+  });
+
   // Markdown rendering
   ipcMain.handle('render-markdown', (_event, source) => {
     return renderMarkdown(source);

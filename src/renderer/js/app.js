@@ -238,6 +238,14 @@
   btnCollapseToc.addEventListener('click', () => setTocVisible(false));
   btnExpandToc.addEventListener('click', () => setTocVisible(true));
 
+  // ---- Load initial file (from "Open with" / file association) ----
+  (async () => {
+    try {
+      const initialFile = await window.api.getInitialFile();
+      if (initialFile) await loadFile(initialFile);
+    } catch (e) { console.error('Initial file load failed:', e); }
+  })();
+
   // ---- IPC Events from Main ----
   window.api.onFileOpened((filePath) => {
     loadFile(filePath);

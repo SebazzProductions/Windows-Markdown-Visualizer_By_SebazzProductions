@@ -2,6 +2,7 @@
   "name": "markdown-visualizer",
   "version": "1.0.0",
   "description": "Hochwertige Markdown-Visualisierung als Desktop-Anwendung",
+  "productName": "Markdown Visualizer",
   "main": "src/main/main.js",
   "scripts": {
     "dev": "electron .",
