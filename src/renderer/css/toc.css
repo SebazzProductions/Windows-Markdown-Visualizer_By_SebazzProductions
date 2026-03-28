@@ -3,8 +3,8 @@
    ============================================= */
 
 .toc-sidebar {
-  width: 280px;
-  min-width: 220px;
+  width: 240px;
+  min-width: 200px;
   max-width: 380px;
   height: 100vh;
   background: var(--sidebar-bg);
@@ -150,6 +150,35 @@
 
 .toc-toggle:hover {
   background: var(--sidebar-hover);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 800px) {
+  .toc-sidebar {
+    width: 220px;
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .toc-sidebar {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-right: none;
+  }
+  .toc-sidebar:not(.collapsed) {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 260px;
+    min-width: 260px;
+    opacity: 1;
+    z-index: 200;
+    box-shadow: var(--shadow-lg);
+  }
+}
   color: var(--text-primary);
 }
 

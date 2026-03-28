@@ -96,10 +96,10 @@ body {
 }
 
 .welcome-shortcuts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem 1.5rem;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .shortcut {
@@ -171,7 +171,13 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 400px;
+  max-width: 300px;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
 }
 
 .markdown-body {
@@ -184,6 +190,49 @@ kbd {
 @media (max-width: 800px) {
   .markdown-body {
     padding: 1.5rem 1.25rem;
+  }
+  .toolbar {
+    padding: 0 0.75rem;
+  }
+  .file-name {
+    max-width: 150px;
+    font-size: 0.76rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .markdown-body {
+    padding: 1rem 0.75rem;
+  }
+  .welcome-shortcuts {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+  .welcome-content {
+    padding: 1.5rem 1rem;
+  }
+  .welcome-title {
+    font-size: 1.4rem;
+  }
+  .file-name {
+    max-width: 100px;
+  }
+}
+
+@media (max-width: 360px) {
+  .toolbar {
+    padding: 0 0.5rem;
+    gap: 0.25rem;
+  }
+  .toolbar-right {
+    gap: 0.25rem;
+  }
+  .btn-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .welcome-title {
+    font-size: 1.2rem;
   }
 }
 
@@ -398,6 +447,49 @@ kbd {
   border-radius: 16px;
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
+}
+
+/* =============================================
+   HELP MODAL
+   ============================================= */
+
+.help-shortcuts {
+  padding: 0.5rem 1.5rem 1.25rem !important;
+}
+
+.help-group {
+  margin-bottom: 1rem;
+}
+
+.help-group:last-child {
+  margin-bottom: 0;
+}
+
+.help-group h4 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.help-row span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 /* =============================================

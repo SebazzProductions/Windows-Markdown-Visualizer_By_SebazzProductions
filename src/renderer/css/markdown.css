@@ -8,7 +8,7 @@
   font-size: 1rem;
   line-height: 1.75;
   word-wrap: break-word;
-  max-width: 860px;
+  max-width: 900px;
 }
 
 /* ---- Headings ---- */
@@ -261,6 +261,44 @@
 .hljs-built_in, .hljs-type { color: #e6c07b; }
 .hljs-function { color: #61afef; }
 .hljs-variable, .hljs-attr { color: #d19a66; }
+
+/* ---- Responsive ---- */
+@media (max-width: 900px) {
+  .markdown-body {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .markdown-body {
+    font-size: 0.92rem;
+  }
+  .markdown-body pre code {
+    font-size: 0.78rem;
+  }
+  .markdown-body table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .markdown-body h1 {
+    font-size: 1.6em;
+  }
+  .markdown-body h2 {
+    font-size: 1.3em;
+  }
+}
+
+@media (max-width: 360px) {
+  .markdown-body {
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  .markdown-body pre code {
+    font-size: 0.72rem;
+    padding: 0.75em 0.75em;
+  }
+}
 .hljs-title { color: #61afef; font-weight: normal; }
 .hljs-params { color: #abb2bf; }
 .hljs-deletion { color: #e06c75; }

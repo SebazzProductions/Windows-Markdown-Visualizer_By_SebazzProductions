@@ -11,9 +11,17 @@ contextBridge.exposeInMainWorld('api', {
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+  saveFile: (filePath, content) => ipcRenderer.invoke('save-file', filePath, content),
+  saveFileAs: (content, defaultName) => ipcRenderer.invoke('save-file-as', content, defaultName),
   resolvePath: (basePath, relativePath) => ipcRenderer.invoke('resolve-path', basePath, relativePath),
   watchFile: (filePath) => ipcRenderer.invoke('watch-file', filePath),
   setTitle: (title) => ipcRenderer.invoke('set-title', title),
+
+  // Format detection & processing
+  detectFormat: (filePath, content) => ipcRenderer.invoke('detect-format', filePath, content),
+  formatCode: (filePath, source) => ipcRenderer.invoke('format-code', filePath, source),
+  transpileTs: (source) => ipcRenderer.invoke('transpile-ts', source),
+  resolveHtmlAssets: (htmlSource, basePath) => ipcRenderer.invoke('resolve-html-assets', htmlSource, basePath),
 
   // PDF export
   exportPDF: (htmlContent, options) => ipcRenderer.invoke('export-pdf', htmlContent, options),
@@ -35,6 +43,12 @@ contextBridge.exposeInMainWorld('api', {
   onMenuOpenFile: (callback) => {
     ipcRenderer.on('menu-open-file', () => callback());
   },
+  onMenuSaveFile: (callback) => {
+    ipcRenderer.on('menu-save-file', () => callback());
+  },
+  onMenuSaveFileAs: (callback) => {
+    ipcRenderer.on('menu-save-file-as', () => callback());
+  },
   onMenuExportPDF: (callback) => {
     ipcRenderer.on('menu-export-pdf', () => callback());
   },
@@ -52,5 +66,20 @@ contextBridge.exposeInMainWorld('api', {
   },
   onMenuZoomReset: (callback) => {
     ipcRenderer.on('menu-zoom-reset', () => callback());
+  },
+  onMenuSwitchVisualizer: (callback) => {
+    ipcRenderer.on('menu-switch-visualizer', () => callback());
+  },
+  onMenuSwitchEditor: (callback) => {
+    ipcRenderer.on('menu-switch-editor', () => callback());
+  },
+  onMenuSwitchFixSyntax: (callback) => {
+    ipcRenderer.on('menu-switch-fix-syntax', () => callback());
+  },
+  onMenuGoToLine: (callback) => {
+    ipcRenderer.on('menu-goto-line', () => callback());
+  },
+  onMenuRunCode: (callback) => {
+    ipcRenderer.on('menu-run-code', () => callback());
   }
 });

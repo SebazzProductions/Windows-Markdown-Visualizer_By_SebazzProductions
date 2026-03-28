@@ -20,6 +20,41 @@ win:
       description: Markdown Document
       role: Viewer
       icon: build/icon.ico
+    - ext: html
+      name: HTML File
+      description: HTML Document
+      role: Viewer
+      icon: build/icon.ico
+    - ext: htm
+      name: HTML File
+      description: HTML Document
+      role: Viewer
+      icon: build/icon.ico
+    - ext: css
+      name: CSS File
+      description: CSS Stylesheet
+      role: Viewer
+      icon: build/icon.ico
+    - ext: js
+      name: JavaScript File
+      description: JavaScript File
+      role: Viewer
+      icon: build/icon.ico
+    - ext: ts
+      name: TypeScript File
+      description: TypeScript File
+      role: Viewer
+      icon: build/icon.ico
+    - ext: json
+      name: JSON File
+      description: JSON Document
+      role: Viewer
+      icon: build/icon.ico
+    - ext: txt
+      name: Text File
+      description: Text Document
+      role: Viewer
+      icon: build/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

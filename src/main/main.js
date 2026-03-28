@@ -2,6 +2,16 @@ const { app, BrowserWindow, protocol, shell } = require('electron');
 const path = require('path');
 const { setupIpcHandlers } = require('./ipc-handlers');
 const { createAppMenu } = require('./menu');
+const { getSupportedExtensions } = require('./format-registry');
+
+// Load all format handlers so registry is populated
+require('./formats/markdown-handler');
+require('./formats/html-handler');
+require('./formats/css-handler');
+require('./formats/js-handler');
+require('./formats/ts-handler');
+require('./formats/json-handler');
+require('./formats/text-handler');
 
 app.setAppUserModelId('com.markdownvisualizer.app');
 
@@ -26,13 +36,14 @@ if (!gotLock) {
 }
 
 function extractFilePathFromArgs(argv) {
-  // In production, the file path is the last argument
-  // In dev, skip electron executable and script path
+  const supported = getSupportedExtensions();
   for (let i = argv.length - 1; i >= 0; i--) {
     const arg = argv[i];
-    if (arg && !arg.startsWith('-') && !arg.startsWith('--') &&
-        (arg.endsWith('.md') || arg.endsWith('.markdown') || arg.endsWith('.txt'))) {
-      return path.resolve(arg);
+    if (arg && !arg.startsWith('-') && !arg.startsWith('--')) {
+      const ext = path.extname(arg).toLowerCase();
+      if (supported.includes(ext)) {
+        return path.resolve(arg);
+      }
     }
   }
   return null;
@@ -71,6 +82,11 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Before close: check dirty state
+  mainWindow.on('close', (e) => {
+    // Renderer will handle dirty-state dialog via IPC
   });
 
   return mainWindow;

@@ -10,6 +10,10 @@
   let currentHeadings = [];
   let currentZoom = 100;
   let tocVisible = true;
+  let currentMode = 'visualizer'; // 'visualizer' | 'editor' | 'fix-syntax'
+  let currentFormat = 'text';     // format id from registry
+  let currentFormatLabel = '';
+  let isDirty = false;
 
   // ---- DOM References ----
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -20,10 +24,30 @@
   const btnExpandToc = document.getElementById('btn-expand-toc');
   const contentArea = document.getElementById('markdown-content');
   const fileNameEl = document.getElementById('file-name');
+  const formatBadge = document.getElementById('format-badge');
+  const dirtyIndicator = document.getElementById('dirty-indicator');
   const btnOpenFile = document.getElementById('btn-open-file');
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const btnExportPdf = document.getElementById('btn-export-pdf');
+  const btnRunCode = document.getElementById('btn-run-code');
+  const btnHelp = document.getElementById('btn-help');
+  const helpModal = document.getElementById('help-modal');
+  const btnHelpClose = document.getElementById('btn-help-close');
   const dropOverlay = document.getElementById('drop-overlay');
+
+  // Panels
+  const visualizerPanel = document.getElementById('visualizer-panel');
+  const editorPanel = document.getElementById('editor-panel');
+  const fixSyntaxPanel = document.getElementById('fix-syntax-panel');
+
+  // Tab buttons
+  const tabButtons = document.querySelectorAll('.tab-btn');
+
+  // Goto dialog
+  const gotoDialog = document.getElementById('goto-dialog');
+  const gotoInput = document.getElementById('goto-input');
+  const btnGotoGo = document.getElementById('btn-goto-go');
+  const btnGotoClose = document.getElementById('btn-goto-close');
 
   // ---- Initialize Modules ----
   TOCManager.init(tocContent, navigateToHeading);
@@ -31,6 +55,27 @@
     TOCManager.setActive(headingId);
   });
   PDFExport.initModal();
+  PreviewEngine.init();
+
+  EditorManager.init(
+    document.getElementById('editor-textarea'),
+    document.getElementById('line-gutter'),
+    (newContent) => {
+      currentSource = newContent;
+      setDirty(true);
+    }
+  );
+
+  FixSyntaxManager.init(async (fixedSource) => {
+    currentSource = fixedSource;
+    setDirty(true);
+    EditorManager.setContent(fixedSource);
+    FixSyntaxManager.setSource(fixedSource, currentFilePath);
+    // Refresh visualizer
+    await refreshVisualizer();
+    // Re-analyze with new source
+    FixSyntaxManager.analyze(fixedSource, currentFilePath);
+  });
 
   // ---- Theme ----
   function initTheme() {
@@ -73,8 +118,66 @@
     }
   }
 
+  // ---- Mode / Tab Switching ----
+  function switchMode(mode) {
+    // Guard: no file loaded yet
+    if (!currentFilePath && mode !== 'visualizer') return;
+
+    currentMode = mode;
+
+    // Update tab buttons
+    tabButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // Show/hide panels
+    visualizerPanel.classList.toggle('hidden', mode !== 'visualizer');
+    editorPanel.classList.toggle('hidden', mode !== 'editor');
+    fixSyntaxPanel.classList.toggle('hidden', mode !== 'fix-syntax');
+
+    // Panel-specific setup
+    if (mode === 'editor') {
+      EditorManager.setContent(currentSource);
+      EditorManager.setFormatLabel(currentFormatLabel);
+      EditorManager.focus();
+    } else if (mode === 'fix-syntax') {
+      if (currentSource && currentFilePath) {
+        FixSyntaxManager.setSource(currentSource, currentFilePath);
+        FixSyntaxManager.analyze(currentSource, currentFilePath);
+      }
+    } else if (mode === 'visualizer') {
+      // For markdown: ensure TOC sidebar is visible
+      if (currentFormat === 'markdown') {
+        setTocVisible(true);
+      }
+      refreshVisualizer();
+    }
+  }
+
+  // Tab click handlers
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchMode(btn.dataset.mode);
+    });
+  });
+
+  // ---- Dirty State ----
+  function setDirty(dirty) {
+    isDirty = dirty;
+    dirtyIndicator.classList.toggle('hidden', !dirty);
+    updateTitle();
+  }
+
+  function updateTitle() {
+    if (!currentFilePath) return;
+    const fileName = currentFilePath.split(/[/\\]/).pop();
+    const prefix = isDirty ? '● ' : '';
+    window.api.setTitle(`${prefix}${fileName} – Markdown Visualizer`);
+  }
+
   // ---- File Loading ----
   async function openFileDialog() {
+    if (isDirty && !confirmDiscard()) return;
     try {
       const filePath = await window.api.openFile();
       if (filePath) {
@@ -85,51 +188,87 @@
     }
   }
 
+  function confirmDiscard() {
+    return confirm('Es gibt ungespeicherte Änderungen. Verwerfen?');
+  }
+
   async function loadFile(filePath) {
     try {
       const result = await window.api.readFile(filePath);
       currentFilePath = result.filePath;
       currentSource = result.content;
+      setDirty(false);
 
-      // Render markdown (async IPC call to main process)
-      const { html, headings } = await window.api.renderMarkdown(currentSource);
-      currentHeadings = headings;
+      // Detect format
+      const fmt = await window.api.detectFormat(result.filePath, result.content);
+      currentFormat = fmt.id;
+      currentFormatLabel = fmt.label;
 
       // Update UI
-      contentArea.innerHTML = html;
       fileNameEl.textContent = result.fileName;
-      window.api.setTitle(`${result.fileName} – Markdown Visualizer`);
+      formatBadge.textContent = fmt.label;
+      formatBadge.classList.remove('hidden');
+      updateTitle();
 
-      // Process images - resolve relative paths
-      await processImages(result.filePath);
+      // Show/hide TOC based on format
+      if (currentFormat === 'markdown') {
+        setTocVisible(true);
+      } else {
+        setTocVisible(false);
+      }
 
-      // Make external links open in default browser
-      processLinks();
+      // Show/hide run button based on format
+      const execFormats = ['javascript', 'typescript'];
+      PreviewEngine.showRunButton(execFormats.includes(currentFormat));
+      PreviewEngine.setExecutionMode(false);
 
-      // Update TOC
-      TOCManager.update(headings);
+      // Render in visualizer
+      await refreshVisualizer();
 
-      // Update PDF export data
-      PDFExport.setDocumentData(currentSource, currentHeadings, result.fileName);
+      // Set editor content
+      EditorManager.setContent(result.content);
+      EditorManager.setFormatLabel(fmt.label);
 
       // Show app layout, hide welcome
       welcomeScreen.classList.add('hidden');
       appLayout.classList.remove('hidden');
 
-      // Start scroll spy (after DOM update)
-      requestAnimationFrame(() => {
-        ScrollSpy.observe();
-      });
+      // Switch to visualizer mode
+      switchMode('visualizer');
 
       // Watch file for external changes
       window.api.watchFile(result.filePath);
 
-      // Scroll to top
-      contentArea.scrollTop = 0;
-
     } catch (err) {
       console.error('Failed to load file:', err);
     }
+  }
+
+  async function refreshVisualizer() {
+    if (!currentSource) return;
+
+    if (currentFormat === 'markdown') {
+      const headings = await PreviewEngine.renderMarkdown(currentSource);
+      if (headings) {
+        currentHeadings = headings;
+        TOCManager.update(headings);
+        PDFExport.setDocumentData(currentSource, currentHeadings, fileNameEl.textContent);
+
+        // Process images and links
+        await processImages(currentFilePath);
+        processLinks();
+
+        // Start scroll spy
+        requestAnimationFrame(() => {
+          ScrollSpy.observe();
+        });
+      }
+    } else {
+      await PreviewEngine.render(currentSource, currentFormat, currentFilePath);
+    }
+
+    // Scroll to top
+    contentArea.scrollTop = 0;
   }
 
   /**
@@ -160,11 +299,9 @@
       if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          // shell.openExternal is handled by setWindowOpenHandler in main
           window.open(href, '_blank');
         });
       } else if (href && href.startsWith('#')) {
-        // Internal anchor link
         link.addEventListener('click', (e) => {
           e.preventDefault();
           const id = href.slice(1);
@@ -172,6 +309,38 @@
         });
       }
     });
+  }
+
+  // ---- Save ----
+  async function saveFile() {
+    if (!currentFilePath || !isDirty) return;
+    try {
+      await window.api.saveFile(currentFilePath, currentSource);
+      setDirty(false);
+    } catch (err) {
+      console.error('Save failed:', err);
+    }
+  }
+
+  async function saveFileAs() {
+    const fileName = currentFilePath ? currentFilePath.split(/[/\\]/).pop() : 'untitled.txt';
+    try {
+      const result = await window.api.saveFileAs(currentSource, fileName);
+      if (result.success) {
+        currentFilePath = result.filePath;
+        fileNameEl.textContent = result.fileName;
+        setDirty(false);
+        // Re-detect format
+        const fmt = await window.api.detectFormat(result.filePath, currentSource);
+        currentFormat = fmt.id;
+        currentFormatLabel = fmt.label;
+        formatBadge.textContent = fmt.label;
+        EditorManager.setFormatLabel(fmt.label);
+        updateTitle();
+      }
+    } catch (err) {
+      console.error('Save as failed:', err);
+    }
   }
 
   // ---- Zoom ----
@@ -190,6 +359,56 @@
   function applyZoom() {
     contentArea.style.fontSize = `${currentZoom}%`;
   }
+
+  // ---- Goto Line ----
+  function showGotoDialog() {
+    if (currentMode !== 'editor') {
+      switchMode('editor');
+    }
+    gotoDialog.classList.remove('hidden');
+    gotoInput.value = '';
+    gotoInput.focus();
+  }
+
+  function hideGotoDialog() {
+    gotoDialog.classList.add('hidden');
+  }
+
+  function executeGoto() {
+    const line = parseInt(gotoInput.value, 10);
+    if (line > 0) {
+      EditorManager.goToLine(line);
+      hideGotoDialog();
+    }
+  }
+
+  btnGotoGo.addEventListener('click', executeGoto);
+  btnGotoClose.addEventListener('click', hideGotoDialog);
+  gotoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') executeGoto();
+    if (e.key === 'Escape') hideGotoDialog();
+  });
+
+  // ---- Help Modal ----
+  function showHelp() {
+    helpModal.classList.remove('hidden');
+  }
+  function hideHelp() {
+    helpModal.classList.add('hidden');
+  }
+  btnHelp.addEventListener('click', showHelp);
+  btnHelpClose.addEventListener('click', hideHelp);
+  helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) hideHelp();
+  });
+
+  // ---- Run Code ----
+  btnRunCode.addEventListener('click', () => {
+    const isExec = PreviewEngine.toggleExecution();
+    btnRunCode.classList.toggle('active', isExec);
+    btnRunCode.title = isExec ? 'Code anzeigen' : 'Code ausführen (Ctrl+R)';
+    refreshVisualizer();
+  });
 
   // ---- Drag & Drop ----
   let dragCounter = 0;
@@ -222,10 +441,7 @@
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      const name = file.name.toLowerCase();
-      if (name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.txt')) {
-        loadFile(file.path);
-      }
+      loadFile(file.path);
     }
   });
 
@@ -252,11 +468,9 @@
   });
 
   window.api.onFileChanged(async (filePath) => {
-    if (filePath === currentFilePath) {
-      // Save scroll position
+    if (filePath === currentFilePath && !isDirty) {
       const scrollPos = contentArea.scrollTop;
       await loadFile(filePath);
-      // Restore scroll position
       requestAnimationFrame(() => {
         contentArea.scrollTop = scrollPos;
       });
@@ -265,6 +479,8 @@
 
   // ---- Menu Events ----
   window.api.onMenuOpenFile(openFileDialog);
+  window.api.onMenuSaveFile(saveFile);
+  window.api.onMenuSaveFileAs(saveFileAs);
   window.api.onMenuExportPDF(() => {
     if (currentSource) PDFExport.showModal();
   });
@@ -273,14 +489,80 @@
   window.api.onMenuZoomIn(zoomIn);
   window.api.onMenuZoomOut(zoomOut);
   window.api.onMenuZoomReset(zoomReset);
-
-  // ---- Keyboard Shortcuts (fallback for when menu doesn't capture) ----
-  document.addEventListener('keydown', (e) => {
-    // Ctrl+O - Open file
-    if (e.ctrlKey && e.key === 'o') {
-      e.preventDefault();
-      openFileDialog();
+  window.api.onMenuSwitchVisualizer(() => switchMode('visualizer'));
+  window.api.onMenuSwitchEditor(() => switchMode('editor'));
+  window.api.onMenuSwitchFixSyntax(() => switchMode('fix-syntax'));
+  window.api.onMenuGoToLine(showGotoDialog);
+  window.api.onMenuRunCode(() => {
+    if (['javascript', 'typescript'].includes(currentFormat)) {
+      const isExec = PreviewEngine.toggleExecution();
+      btnRunCode.classList.toggle('active', isExec);
+      refreshVisualizer();
     }
   });
 
+  // ---- Keyboard Shortcuts ----
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+O - Open file (always available)
+    if (e.ctrlKey && !e.shiftKey && e.key === 'o') {
+      e.preventDefault();
+      openFileDialog();
+      return;
+    }
+    // Escape - close dialogs (always available)
+    if (e.key === 'Escape') {
+      if (!gotoDialog.classList.contains('hidden')) {
+        hideGotoDialog();
+      } else if (!helpModal.classList.contains('hidden')) {
+        hideHelp();
+      }
+      return;
+    }
+    // All remaining shortcuts require a loaded file
+    if (!currentFilePath) return;
+
+    // Ctrl+S - Save
+    if (e.ctrlKey && !e.shiftKey && e.key === 's') {
+      e.preventDefault();
+      saveFile();
+    }
+    // Ctrl+Shift+S - Save As
+    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+      e.preventDefault();
+      saveFileAs();
+    }
+    // Ctrl+E - Toggle Editor
+    if (e.ctrlKey && !e.shiftKey && e.key === 'e') {
+      e.preventDefault();
+      switchMode(currentMode === 'editor' ? 'visualizer' : 'editor');
+    }
+    // Ctrl+Shift+F - Fix Syntax
+    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+      e.preventDefault();
+      switchMode(currentMode === 'fix-syntax' ? 'visualizer' : 'fix-syntax');
+    }
+    // Ctrl+G - Goto Line
+    if (e.ctrlKey && !e.shiftKey && e.key === 'g') {
+      e.preventDefault();
+      showGotoDialog();
+    }
+    // Ctrl+R - Run Code
+    if (e.ctrlKey && !e.shiftKey && e.key === 'r') {
+      e.preventDefault();
+      if (['javascript', 'typescript'].includes(currentFormat)) {
+        const isExec = PreviewEngine.toggleExecution();
+        btnRunCode.classList.toggle('active', isExec);
+        refreshVisualizer();
+      }
+    }
+  });
+
+  // ---- Responsive: auto-collapse sidebar on resize ----
+  function checkResponsive() {
+    if (window.innerWidth < 640 && tocVisible) {
+      setTocVisible(false);
+    }
+  }
+  window.addEventListener('resize', checkResponsive);
+  checkResponsive();
 })();
