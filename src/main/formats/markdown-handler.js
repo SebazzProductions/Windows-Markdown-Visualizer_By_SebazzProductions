@@ -17,7 +17,7 @@ registerFormat({
   extractHeadings: (source) => extractHeadings(source),
   format: (source) => {
     const issues = [];
-    let formatted = source;
+    let formatted = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     // Identify code block ranges so we don't touch them
     function getCodeBlockRanges(text) {
@@ -35,6 +35,76 @@ registerFormat({
     }
     function isInCodeBlock(lineIndex, ranges) {
       return ranges.some(r => lineIndex >= r.start && lineIndex <= r.end);
+    }
+
+    function splitByCodeBlocks(text) {
+      const lines = text.split('\n');
+      const segments = [];
+      let buffer = [];
+      let inCodeBlock = false;
+
+      for (const line of lines) {
+        if (/^\s*```/.test(line)) {
+          if (!inCodeBlock && buffer.length > 0) {
+            segments.push({ type: 'text', content: buffer.join('\n') });
+            buffer = [];
+          }
+
+          buffer.push(line);
+
+          if (inCodeBlock) {
+            segments.push({ type: 'code', content: buffer.join('\n') });
+            buffer = [];
+          }
+
+          inCodeBlock = !inCodeBlock;
+          continue;
+        }
+
+        buffer.push(line);
+      }
+
+      if (buffer.length > 0) {
+        segments.push({ type: inCodeBlock ? 'code' : 'text', content: buffer.join('\n') });
+      }
+
+      return segments;
+    }
+
+    function transformOutsideCodeBlocks(text, transform) {
+      return splitByCodeBlocks(text)
+        .map(segment => segment.type === 'text' ? transform(segment.content) : segment.content)
+        .join('\n');
+    }
+
+    function ensureBlankLinesAroundCodeBlocks(text) {
+      const lines = text.split('\n');
+      const normalized = [];
+      let inCodeBlock = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isFence = /^\s*```/.test(line);
+
+        if (!isFence) {
+          normalized.push(line);
+          continue;
+        }
+
+        if (!inCodeBlock && normalized.length > 0 && normalized[normalized.length - 1].trim() !== '') {
+          normalized.push('');
+        }
+
+        normalized.push(line);
+        inCodeBlock = !inCodeBlock;
+
+        const nextLine = lines[i + 1];
+        if (!inCodeBlock && nextLine !== undefined && nextLine.trim() !== '') {
+          normalized.push('');
+        }
+      }
+
+      return normalized.join('\n');
     }
 
     // Pass 1: line-level fixes (outside code blocks)
@@ -67,32 +137,26 @@ registerFormat({
     }
     formatted = lines.join('\n');
 
-    // Pass 2: structural fixes
-    // Multiple blank lines → single blank line (outside code blocks)
-    formatted = formatted.replace(/\n{3,}/g, '\n\n');
+    // Pass 2: structural fixes (strictly outside fenced code blocks)
+    formatted = transformOutsideCodeBlocks(formatted, (text) => {
+      let next = text;
 
-    // Ensure blank line before headings
-    formatted = formatted.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2');
+      // Multiple blank lines → single blank line
+      next = next.replace(/\n{3,}/g, '\n\n');
 
-    // Ensure blank line after headings
-    formatted = formatted.replace(/(#{1,6}\s[^\n]+)\n([^\n#>*\-\s])/g, '$1\n\n$2');
+      // Ensure blank line before headings
+      next = next.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2');
 
-    // Ensure blank line before code blocks
-    formatted = formatted.replace(/([^\n])\n(\s*```)/g, '$1\n\n$2');
+      // Ensure blank line after headings
+      next = next.replace(/(#{1,6}\s[^\n]+)\n([^\n#>*\-\s])/g, '$1\n\n$2');
 
-    // Ensure blank line after code blocks (closing ```)
-    formatted = formatted.replace(/(^\s*```)\n([^\n\s])/gm, '$1\n\n$2');
+      // Ensure blank line before lists (unordered: - * +, ordered: 1.)
+      next = next.replace(/([^\n])\n(\s*[-*+]\s)/g, '$1\n\n$2');
+      next = next.replace(/([^\n])\n(\s*\d+\.\s)/g, '$1\n\n$2');
 
-    // Ensure blank line before lists (unordered: - * +, ordered: 1.)
-    formatted = formatted.replace(/([^\n])\n(\s*[-*+]\s)/g, (m, p1, p2) => {
-      // Only if previous line isn't already a list item or blank
-      if (/^\s*[-*+]\s/.test(p1) || /^\s*\d+\.\s/.test(p1)) return m;
-      return `${p1}\n\n${p2}`;
+      return next;
     });
-    formatted = formatted.replace(/([^\n])\n(\s*\d+\.\s)/g, (m, p1, p2) => {
-      if (/^\s*[-*+]\s/.test(p1) || /^\s*\d+\.\s/.test(p1)) return m;
-      return `${p1}\n\n${p2}`;
-    });
+    formatted = ensureBlankLinesAroundCodeBlocks(formatted);
 
     // Normalize inconsistent list markers within a block (mix of - * +) → all -
     lines = formatted.split('\n');

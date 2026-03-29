@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // Markdown rendering (delegated to main process)
@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   resolvePath: (basePath, relativePath) => ipcRenderer.invoke('resolve-path', basePath, relativePath),
   watchFile: (filePath) => ipcRenderer.invoke('watch-file', filePath),
   setTitle: (title) => ipcRenderer.invoke('set-title', title),
+  getDroppedFilePath: (file) => webUtils.getPathForFile(file),
 
   // Format detection & processing
   detectFormat: (filePath, content) => ipcRenderer.invoke('detect-format', filePath, content),

@@ -179,8 +179,6 @@
     box-shadow: var(--shadow-lg);
   }
 }
-  color: var(--text-primary);
-}
 
 .toc-toggle svg {
   width: 12px;

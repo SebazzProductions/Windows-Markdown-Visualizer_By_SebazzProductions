@@ -22,7 +22,9 @@ function registerFormat(handler) {
  */
 function getHandler(filePath, content) {
   if (!filePath) return null;
-  const ext = path.extname(filePath).toLowerCase();
+  const ext = filePath.startsWith('.')
+    ? filePath.toLowerCase()
+    : path.extname(filePath).toLowerCase();
 
   // Primary: match by extension
   const byExt = handlers.find(h => h.extensions.includes(ext));

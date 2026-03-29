@@ -34,6 +34,16 @@
   const helpModal = document.getElementById('help-modal');
   const btnHelpClose = document.getElementById('btn-help-close');
   const dropOverlay = document.getElementById('drop-overlay');
+  const dropMessageText = document.getElementById('drop-message-text');
+  const dropMessageHint = document.getElementById('drop-message-hint');
+  const dropDecisionModal = document.getElementById('drop-decision-modal');
+  const dropDecisionTitle = document.getElementById('drop-decision-title');
+  const dropDecisionFile = document.getElementById('drop-decision-file');
+  const dropDecisionMessage = document.getElementById('drop-decision-message');
+  const btnDropDecisionClose = document.getElementById('btn-drop-decision-close');
+  const btnDropInsert = document.getElementById('btn-drop-insert');
+  const btnDropOpen = document.getElementById('btn-drop-open');
+  const btnDropCancel = document.getElementById('btn-drop-cancel');
 
   // Panels
   const visualizerPanel = document.getElementById('visualizer-panel');
@@ -48,6 +58,9 @@
   const gotoInput = document.getElementById('goto-input');
   const btnGotoGo = document.getElementById('btn-goto-go');
   const btnGotoClose = document.getElementById('btn-goto-close');
+  let dragCounter = 0;
+  let dropDecisionResolver = null;
+  let pendingDropSelection = null;
 
   // ---- Initialize Modules ----
   TOCManager.init(tocContent, navigateToHeading);
@@ -66,15 +79,18 @@
     }
   );
 
-  FixSyntaxManager.init(async (fixedSource) => {
-    currentSource = fixedSource;
-    setDirty(true);
-    EditorManager.setContent(fixedSource);
-    FixSyntaxManager.setSource(fixedSource, currentFilePath);
-    // Refresh visualizer
-    await refreshVisualizer();
-    // Re-analyze with new source
-    FixSyntaxManager.analyze(fixedSource, currentFilePath);
+  FixSyntaxManager.init({
+    onApply: async (fixedSource) => {
+      currentSource = fixedSource;
+      setDirty(true);
+      EditorManager.setContent(fixedSource);
+      FixSyntaxManager.setSource(fixedSource, currentFilePath);
+      // Refresh visualizer
+      await refreshVisualizer();
+      // Re-analyze with new source
+      FixSyntaxManager.analyze(fixedSource, currentFilePath);
+    },
+    getSource: () => currentSource
   });
 
   // ---- Theme ----
@@ -97,17 +113,192 @@
   // ---- TOC Sidebar Toggle ----
   function setTocVisible(visible) {
     tocVisible = visible;
-    if (visible) {
-      tocSidebar.classList.remove('collapsed');
-      btnExpandToc.classList.add('hidden');
-    } else {
-      tocSidebar.classList.add('collapsed');
-      btnExpandToc.classList.remove('hidden');
-    }
+    syncTocVisibility();
   }
 
   function toggleToc() {
+    if (currentFormat !== 'markdown') return;
     setTocVisible(!tocVisible);
+  }
+
+  function updateExecutionUi() {
+    const executableFormats = ['javascript', 'typescript'];
+    const canExecute = executableFormats.includes(currentFormat);
+    PreviewEngine.showRunButton(canExecute);
+    PreviewEngine.setExecutionMode(false);
+    btnRunCode.classList.remove('active');
+    btnRunCode.title = 'Code ausführen (Ctrl+R)';
+  }
+
+  function updateDropOverlayText() {
+    if (!dropMessageText || !dropMessageHint) return;
+
+    if (!currentFilePath || currentMode === 'visualizer') {
+      dropMessageText.textContent = 'Datei zum Öffnen ablegen';
+      dropMessageHint.textContent = 'Die Anwendung öffnet die abgelegte Datei zur Bearbeitung.';
+      return;
+    }
+
+    if (currentMode === 'editor') {
+      dropMessageText.textContent = 'Datei im Editor ablegen';
+      dropMessageHint.textContent = 'Nach dem Ablegen können Sie den Inhalt an der aktuellen Cursorposition einfügen oder als neues Dokument öffnen.';
+      return;
+    }
+
+    dropMessageText.textContent = 'Datei für Fix Syntax ablegen';
+    dropMessageHint.textContent = 'Nach dem Ablegen können Sie den Inhalt in dieses Dokument einfügen oder die Datei separat in Fix Syntax bearbeiten.';
+  }
+
+  function hasDropPayload(dataTransfer) {
+    if (!dataTransfer) return false;
+    const types = Array.from(dataTransfer.types || []);
+    return types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain');
+  }
+
+  function parseDroppedPathFromText(text) {
+    if (!text) return null;
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    if (/^file:/i.test(trimmed)) {
+      return fileUriToPath(trimmed);
+    }
+
+    if (/^[A-Za-z]:[\\/]/.test(trimmed)) {
+      return trimmed;
+    }
+
+    return null;
+  }
+
+  function fileUriToPath(fileUri) {
+    try {
+      const parsed = new URL(fileUri);
+      if (parsed.protocol !== 'file:') return null;
+
+      let pathname = decodeURIComponent(parsed.pathname || '');
+      if (/^\/[A-Za-z]:/.test(pathname)) {
+        pathname = pathname.slice(1);
+      }
+
+      return pathname.replace(/\//g, '\\');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function extractDroppedFilePath(dataTransfer) {
+    if (!dataTransfer) return null;
+
+    const file = dataTransfer.files && dataTransfer.files[0];
+    if (file) {
+      const filePath = window.api.getDroppedFilePath(file);
+      if (filePath) {
+        return filePath;
+      }
+    }
+
+    const uriList = dataTransfer.getData('text/uri-list');
+    if (uriList) {
+      const lines = uriList.split(/\r?\n/).map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+      const fromUriList = parseDroppedPathFromText(lines[0]);
+      if (fromUriList) {
+        return fromUriList;
+      }
+    }
+
+    return parseDroppedPathFromText(dataTransfer.getData('text/plain'));
+  }
+
+  function showDropDecision(filePath) {
+    const fileName = filePath.split(/[\\/]/).pop();
+    pendingDropSelection = EditorManager.getSelection();
+
+    if (currentMode === 'fix-syntax') {
+      dropDecisionTitle.textContent = 'Datei in Fix Syntax ablegen';
+      dropDecisionMessage.textContent = `Möchten Sie den Inhalt von ${fileName} in dieses Dokument einfügen oder die Datei als neues Dokument in Fix Syntax bearbeiten?`;
+      btnDropOpen.textContent = 'Als neues Dokument bearbeiten';
+      btnDropInsert.textContent = 'In dieses Dokument einfügen';
+    } else {
+      dropDecisionTitle.textContent = 'Datei im Editor ablegen';
+      dropDecisionMessage.textContent = `Möchten Sie den Inhalt von ${fileName} an der aktuellen Cursorposition einfügen oder die Datei als neues Dokument öffnen?`;
+      btnDropOpen.textContent = 'Als neues Dokument öffnen';
+      btnDropInsert.textContent = 'An Cursorposition einfügen';
+    }
+
+    dropDecisionFile.textContent = filePath;
+    dropDecisionModal.classList.remove('hidden');
+    btnDropInsert.focus();
+
+    return new Promise(resolve => {
+      dropDecisionResolver = resolve;
+    });
+  }
+
+  function resolveDropDecision(decision) {
+    dropDecisionModal.classList.add('hidden');
+    if (dropDecisionResolver) {
+      dropDecisionResolver(decision);
+      dropDecisionResolver = null;
+    }
+    if (decision !== 'insert') {
+      pendingDropSelection = null;
+    }
+  }
+
+  async function openDocument(filePath, options = {}) {
+    if (options.respectDirty !== false && isDirty && !confirmDiscard()) {
+      return false;
+    }
+
+    return loadFile(filePath, options);
+  }
+
+  async function insertDroppedFile(filePath) {
+    const result = await window.api.readFile(filePath);
+    EditorManager.insertTextAtCursor(result.content, pendingDropSelection);
+    pendingDropSelection = null;
+    currentSource = EditorManager.getContent();
+    setDirty(true);
+    await refreshVisualizer();
+
+    if (currentMode === 'fix-syntax') {
+      FixSyntaxManager.setSource(currentSource, currentFilePath);
+      await FixSyntaxManager.analyze(currentSource, currentFilePath);
+    }
+  }
+
+  async function handleDroppedFile(filePath) {
+    if (!filePath) return;
+
+    try {
+      if (!currentFilePath || currentMode === 'visualizer') {
+        await openDocument(filePath, { targetMode: 'visualizer' });
+        return;
+      }
+
+      const decision = await showDropDecision(filePath);
+      if (decision === 'insert') {
+        await insertDroppedFile(filePath);
+      } else if (decision === 'open') {
+        await openDocument(filePath, { targetMode: currentMode });
+      }
+    } catch (err) {
+      console.error('Drop handling failed:', err);
+    } finally {
+      pendingDropSelection = null;
+    }
+  }
+
+  function syncTocVisibility() {
+    if (currentFormat !== 'markdown') {
+      tocSidebar.classList.add('collapsed');
+      btnExpandToc.classList.add('hidden');
+      return;
+    }
+
+    tocSidebar.classList.toggle('collapsed', !tocVisible);
+    btnExpandToc.classList.toggle('hidden', tocVisible);
   }
 
   // ---- Navigation ----
@@ -146,10 +337,7 @@
         FixSyntaxManager.analyze(currentSource, currentFilePath);
       }
     } else if (mode === 'visualizer') {
-      // For markdown: ensure TOC sidebar is visible
-      if (currentFormat === 'markdown') {
-        setTocVisible(true);
-      }
+      syncTocVisibility();
       refreshVisualizer();
     }
   }
@@ -181,7 +369,7 @@
     try {
       const filePath = await window.api.openFile();
       if (filePath) {
-        await loadFile(filePath);
+        await loadFile(filePath, { targetMode: 'visualizer' });
       }
     } catch (err) {
       console.error('openFileDialog error:', err);
@@ -192,11 +380,14 @@
     return confirm('Es gibt ungespeicherte Änderungen. Verwerfen?');
   }
 
-  async function loadFile(filePath) {
+  async function loadFile(filePath, options = {}) {
+    const targetMode = options.preserveMode ? currentMode : (options.targetMode || 'visualizer');
+
     try {
       const result = await window.api.readFile(filePath);
       currentFilePath = result.filePath;
       currentSource = result.content;
+      currentHeadings = [];
       setDirty(false);
 
       // Detect format
@@ -211,16 +402,10 @@
       updateTitle();
 
       // Show/hide TOC based on format
-      if (currentFormat === 'markdown') {
-        setTocVisible(true);
-      } else {
-        setTocVisible(false);
-      }
+      tocVisible = currentFormat === 'markdown';
+      syncTocVisibility();
 
-      // Show/hide run button based on format
-      const execFormats = ['javascript', 'typescript'];
-      PreviewEngine.showRunButton(execFormats.includes(currentFormat));
-      PreviewEngine.setExecutionMode(false);
+      updateExecutionUi();
 
       // Render in visualizer
       await refreshVisualizer();
@@ -233,14 +418,17 @@
       welcomeScreen.classList.add('hidden');
       appLayout.classList.remove('hidden');
 
-      // Switch to visualizer mode
-      switchMode('visualizer');
+      // Switch to the requested mode
+      switchMode(targetMode);
 
       // Watch file for external changes
       window.api.watchFile(result.filePath);
 
+      return true;
+
     } catch (err) {
       console.error('Failed to load file:', err);
+      return false;
     }
   }
 
@@ -264,6 +452,9 @@
         });
       }
     } else {
+      currentHeadings = [];
+      TOCManager.update([]);
+      TOCManager.setActive(null);
       await PreviewEngine.render(currentSource, currentFormat, currentFilePath);
     }
 
@@ -336,7 +527,16 @@
         currentFormatLabel = fmt.label;
         formatBadge.textContent = fmt.label;
         EditorManager.setFormatLabel(fmt.label);
+        tocVisible = currentFormat === 'markdown';
+        syncTocVisibility();
+        updateExecutionUi();
         updateTitle();
+        window.api.watchFile(result.filePath);
+        await refreshVisualizer();
+        if (currentMode === 'fix-syntax') {
+          FixSyntaxManager.setSource(currentSource, currentFilePath);
+          FixSyntaxManager.analyze(currentSource, currentFilePath);
+        }
       }
     } catch (err) {
       console.error('Save as failed:', err);
@@ -401,6 +601,15 @@
   helpModal.addEventListener('click', (e) => {
     if (e.target === helpModal) hideHelp();
   });
+  btnDropDecisionClose.addEventListener('click', () => resolveDropDecision('cancel'));
+  btnDropInsert.addEventListener('click', () => resolveDropDecision('insert'));
+  btnDropOpen.addEventListener('click', () => resolveDropDecision('open'));
+  btnDropCancel.addEventListener('click', () => resolveDropDecision('cancel'));
+  dropDecisionModal.addEventListener('click', (e) => {
+    if (e.target === dropDecisionModal) {
+      resolveDropDecision('cancel');
+    }
+  });
 
   // ---- Run Code ----
   btnRunCode.addEventListener('click', () => {
@@ -411,38 +620,45 @@
   });
 
   // ---- Drag & Drop ----
-  let dragCounter = 0;
-
   document.addEventListener('dragenter', (e) => {
+    if (!hasDropPayload(e.dataTransfer)) return;
     e.preventDefault();
     dragCounter++;
     if (dragCounter === 1) {
+      updateDropOverlayText();
       dropOverlay.classList.remove('hidden');
     }
   });
 
   document.addEventListener('dragleave', (e) => {
+    if (!hasDropPayload(e.dataTransfer)) return;
     e.preventDefault();
-    dragCounter--;
+    dragCounter = Math.max(0, dragCounter - 1);
     if (dragCounter === 0) {
       dropOverlay.classList.add('hidden');
     }
   });
 
   document.addEventListener('dragover', (e) => {
+    if (!hasDropPayload(e.dataTransfer)) return;
     e.preventDefault();
   });
 
-  document.addEventListener('drop', (e) => {
+  document.addEventListener('drop', async (e) => {
+    if (!hasDropPayload(e.dataTransfer)) return;
     e.preventDefault();
     dragCounter = 0;
     dropOverlay.classList.add('hidden');
 
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      loadFile(file.path);
+    const filePath = await extractDroppedFilePath(e.dataTransfer);
+    if (filePath) {
+      await handleDroppedFile(filePath);
     }
+  });
+
+  document.addEventListener('dragend', () => {
+    dragCounter = 0;
+    dropOverlay.classList.add('hidden');
   });
 
   // ---- Event Listeners ----
@@ -458,22 +674,25 @@
   (async () => {
     try {
       const initialFile = await window.api.getInitialFile();
-      if (initialFile) await loadFile(initialFile);
+      if (initialFile) await loadFile(initialFile, { targetMode: 'visualizer' });
     } catch (e) { console.error('Initial file load failed:', e); }
   })();
 
   // ---- IPC Events from Main ----
   window.api.onFileOpened((filePath) => {
-    loadFile(filePath);
+    openDocument(filePath, { targetMode: 'visualizer' });
   });
 
   window.api.onFileChanged(async (filePath) => {
     if (filePath === currentFilePath && !isDirty) {
-      const scrollPos = contentArea.scrollTop;
-      await loadFile(filePath);
-      requestAnimationFrame(() => {
-        contentArea.scrollTop = scrollPos;
-      });
+      const scrollPos = currentMode === 'visualizer' ? contentArea.scrollTop : 0;
+      const modeBeforeReload = currentMode;
+      await loadFile(filePath, { targetMode: modeBeforeReload });
+      if (modeBeforeReload === 'visualizer') {
+        requestAnimationFrame(() => {
+          contentArea.scrollTop = scrollPos;
+        });
+      }
     }
   });
 
@@ -503,8 +722,10 @@
 
   // ---- Keyboard Shortcuts ----
   document.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+
     // Ctrl+O - Open file (always available)
-    if (e.ctrlKey && !e.shiftKey && e.key === 'o') {
+    if (e.ctrlKey && !e.shiftKey && key === 'o') {
       e.preventDefault();
       openFileDialog();
       return;
@@ -513,6 +734,8 @@
     if (e.key === 'Escape') {
       if (!gotoDialog.classList.contains('hidden')) {
         hideGotoDialog();
+      } else if (!dropDecisionModal.classList.contains('hidden')) {
+        resolveDropDecision('cancel');
       } else if (!helpModal.classList.contains('hidden')) {
         hideHelp();
       }
@@ -522,32 +745,32 @@
     if (!currentFilePath) return;
 
     // Ctrl+S - Save
-    if (e.ctrlKey && !e.shiftKey && e.key === 's') {
+    if (e.ctrlKey && !e.shiftKey && key === 's') {
       e.preventDefault();
       saveFile();
     }
     // Ctrl+Shift+S - Save As
-    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    if (e.ctrlKey && e.shiftKey && key === 's') {
       e.preventDefault();
       saveFileAs();
     }
     // Ctrl+E - Toggle Editor
-    if (e.ctrlKey && !e.shiftKey && e.key === 'e') {
+    if (e.ctrlKey && !e.shiftKey && key === 'e') {
       e.preventDefault();
       switchMode(currentMode === 'editor' ? 'visualizer' : 'editor');
     }
     // Ctrl+Shift+F - Fix Syntax
-    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+    if (e.ctrlKey && e.shiftKey && key === 'f') {
       e.preventDefault();
       switchMode(currentMode === 'fix-syntax' ? 'visualizer' : 'fix-syntax');
     }
     // Ctrl+G - Goto Line
-    if (e.ctrlKey && !e.shiftKey && e.key === 'g') {
+    if (e.ctrlKey && !e.shiftKey && key === 'g') {
       e.preventDefault();
       showGotoDialog();
     }
     // Ctrl+R - Run Code
-    if (e.ctrlKey && !e.shiftKey && e.key === 'r') {
+    if (e.ctrlKey && !e.shiftKey && key === 'r') {
       e.preventDefault();
       if (['javascript', 'typescript'].includes(currentFormat)) {
         const isExec = PreviewEngine.toggleExecution();
@@ -561,7 +784,10 @@
   function checkResponsive() {
     if (window.innerWidth < 640 && tocVisible) {
       setTocVisible(false);
+      return;
     }
+
+    syncTocVisibility();
   }
   window.addEventListener('resize', checkResponsive);
   checkResponsive();

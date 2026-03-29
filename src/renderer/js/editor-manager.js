@@ -64,6 +64,18 @@ const EditorManager = (() => {
     return textarea ? textarea.value : '';
   }
 
+  function getSelection() {
+    if (!textarea) {
+      return { start: 0, end: 0, scrollTop: 0 };
+    }
+
+    return {
+      start: textarea.selectionStart,
+      end: textarea.selectionEnd,
+      scrollTop: textarea.scrollTop
+    };
+  }
+
   function updateLineNumbers() {
     if (!textarea || !gutter) return;
     const lines = textarea.value.split('\n');
@@ -127,9 +139,42 @@ const EditorManager = (() => {
     return lineCount;
   }
 
+  function insertTextAtCursor(text, selection = null) {
+    if (!textarea) return;
+
+    if (selection) {
+      textarea.selectionStart = selection.start;
+      textarea.selectionEnd = selection.end;
+      if (typeof selection.scrollTop === 'number') {
+        textarea.scrollTop = selection.scrollTop;
+      }
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+    updateLineNumbers();
+    updateStatus();
+    if (onChangeCallback) onChangeCallback(textarea.value);
+  }
+
   function focus() {
     if (textarea) textarea.focus();
   }
 
-  return { init, setContent, getContent, updateLineNumbers, goToLine, getLineCount, setFormatLabel, focus };
+  return {
+    init,
+    setContent,
+    getContent,
+    getSelection,
+    updateLineNumbers,
+    goToLine,
+    getLineCount,
+    insertTextAtCursor,
+    setFormatLabel,
+    focus
+  };
 })();

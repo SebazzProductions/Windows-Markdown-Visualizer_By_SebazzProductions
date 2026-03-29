@@ -10,6 +10,7 @@ const PreviewEngine = (() => {
   let consoleOutput = null;
   let btnRunCode = null;
   let executionMode = false; // false = highlight, true = execute
+  let activeObjectUrl = null;
 
   function init() {
     markdownContainer = document.getElementById('markdown-content');
@@ -22,6 +23,10 @@ const PreviewEngine = (() => {
 
     // Listen for console messages from iframe
     window.addEventListener('message', (e) => {
+      if (!previewIframe || e.source !== previewIframe.contentWindow) {
+        return;
+      }
+
       if (e.data && e.data.type === 'console') {
         appendConsole(e.data.level, e.data.args);
       }
@@ -62,6 +67,7 @@ const PreviewEngine = (() => {
     previewIframe.classList.add('hidden');
     consolePanel.classList.add('hidden');
     btnRunCode.classList.add('hidden');
+    clearPreviewFrame();
   }
 
   function showRunButton(show) {
@@ -96,14 +102,7 @@ const PreviewEngine = (() => {
       html = await window.api.resolveHtmlAssets(source, filePath);
     }
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    previewIframe.src = url;
-
-    // Cleanup blob URL after load
-    previewIframe.onload = () => {
-      URL.revokeObjectURL(url);
-    };
+    setPreviewContent(html);
   }
 
   /**
@@ -132,10 +131,7 @@ const PreviewEngine = (() => {
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    previewIframe.src = url;
-    previewIframe.onload = () => URL.revokeObjectURL(url);
+    setPreviewContent(html);
   }
 
   /**
@@ -213,10 +209,7 @@ const PreviewEngine = (() => {
 <\/script>`;
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${consoleScript}</head><body><script>${escapeForScript(jsCode)}<\/script></body></html>`;
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    previewIframe.src = url;
-    previewIframe.onload = () => URL.revokeObjectURL(url);
+    setPreviewContent(html);
   }
 
   /**
@@ -272,6 +265,32 @@ const PreviewEngine = (() => {
 
   function setExecutionMode(mode) {
     executionMode = mode;
+  }
+
+  function clearPreviewFrame() {
+    if (activeObjectUrl) {
+      URL.revokeObjectURL(activeObjectUrl);
+      activeObjectUrl = null;
+    }
+
+    if (previewIframe) {
+      previewIframe.onload = null;
+      previewIframe.removeAttribute('src');
+    }
+  }
+
+  function setPreviewContent(html) {
+    clearPreviewFrame();
+
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    activeObjectUrl = url;
+    previewIframe.src = url;
+    previewIframe.onload = () => {
+      if (activeObjectUrl === url) {
+        URL.revokeObjectURL(url);
+        activeObjectUrl = null;
+      }
+    };
   }
 
   // ---- Utilities ----

@@ -178,14 +178,22 @@ function setupIpcHandlers(getInitialFile) {
   // Export to PDF
   ipcMain.handle('export-pdf', async (event, htmlContent, options = {}) => {
     const win = BrowserWindow.fromWebContents(event.sender);
+    const targetPath = typeof options.targetPath === 'string' && options.targetPath.trim()
+      ? path.resolve(options.targetPath)
+      : null;
 
-    const saveResult = await dialog.showSaveDialog(win, {
-      title: 'PDF exportieren',
-      defaultPath: options.defaultFileName || 'dokument.pdf',
-      filters: [{ name: 'PDF-Dateien', extensions: ['pdf'] }]
-    });
+    let outputPath = targetPath;
 
-    if (saveResult.canceled) return { success: false, canceled: true };
+    if (!outputPath) {
+      const saveResult = await dialog.showSaveDialog(win, {
+        title: 'PDF exportieren',
+        defaultPath: options.defaultFileName || 'dokument.pdf',
+        filters: [{ name: 'PDF-Dateien', extensions: ['pdf'] }]
+      });
+
+      if (saveResult.canceled) return { success: false, canceled: true };
+      outputPath = saveResult.filePath;
+    }
 
     // Create hidden window for PDF rendering
     const pdfWindow = new BrowserWindow({
@@ -215,8 +223,8 @@ function setupIpcHandlers(getInitialFile) {
         }
       });
 
-      await fs.promises.writeFile(saveResult.filePath, pdfBuffer);
-      return { success: true, filePath: saveResult.filePath };
+      await fs.promises.writeFile(outputPath, pdfBuffer);
+      return { success: true, filePath: outputPath };
     } catch (err) {
       return { success: false, error: err.message };
     } finally {

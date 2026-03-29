@@ -315,6 +315,29 @@
     </div>
   </div>
 
+  <!-- Drop Decision Modal -->
+  <div id="drop-decision-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="drop-decision-title">Datei ablegen</h3>
+        <button id="btn-drop-decision-close" class="btn-icon" title="Schließen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="drop-decision-file" class="drop-decision-file"></p>
+        <p id="drop-decision-message" class="drop-decision-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-drop-cancel" class="btn btn-secondary">Abbrechen</button>
+        <button id="btn-drop-open" class="btn btn-secondary">Als neues Dokument öffnen</button>
+        <button id="btn-drop-insert" class="btn btn-primary">In aktuelles Dokument einfügen</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Drag & Drop Overlay -->
   <div id="drop-overlay" class="drop-overlay hidden">
     <div class="drop-message">
@@ -323,7 +346,8 @@
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span>Datei hier ablegen</span>
+      <span id="drop-message-text">Datei hier ablegen</span>
+      <span id="drop-message-hint" class="drop-hint">Die Anwendung öffnet die abgelegte Datei.</span>
     </div>
   </div>
 

@@ -71,9 +71,10 @@ const md = markdownIt({
 md.use(markdownItAnchor, { slugify, permalink: false, level: [1, 2, 3, 4, 5, 6] });
 
 function extractHeadings(source) {
+  const normalizedSource = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const headings = [];
   const usedSlugs = new Map();
-  for (const line of source.split('\n')) {
+  for (const line of normalizedSource.split('\n')) {
     const match = line.match(/^(#{1,6})\s+(.+)$/);
     if (match) {
       const level = match[1].length;
@@ -107,4 +108,4 @@ function renderMarkdownToHtml(source) {
   return md.render(source);
 }
 
-module.exports = { renderMarkdown, renderMarkdownToHtml };
+module.exports = { renderMarkdown, renderMarkdownToHtml, extractHeadings };

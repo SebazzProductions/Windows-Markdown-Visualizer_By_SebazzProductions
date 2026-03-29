@@ -213,6 +213,9 @@ const PDFExport = (() => {
   async function exportPdf() {
     const includeToc = document.getElementById('pdf-include-toc').checked;
     const pageSize = document.getElementById('pdf-page-size').value;
+    const targetPath = typeof window.__mvE2ePdfTargetPath === 'string'
+      ? window.__mvE2ePdfTargetPath
+      : null;
 
     const htmlContent = await generatePdfHtml(includeToc);
 
@@ -220,7 +223,8 @@ const PDFExport = (() => {
 
     const result = await window.api.exportPDF(htmlContent, {
       defaultFileName: `${currentFileName}.pdf`,
-      pageSize: pageSize
+      pageSize: pageSize,
+      targetPath: targetPath
     });
 
     if (result.success) {

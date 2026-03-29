@@ -14,16 +14,18 @@ const FixSyntaxManager = (() => {
   let currentFormatted = '';
   let currentIssues = [];
   let onApplyCallback = null;
+  let getSourceCallback = null;
   let lastFilePath = null;
 
-  function init(onApply) {
+  function init(options = {}) {
     issuesContent = document.getElementById('fix-issues-content');
     issueCountBadge = document.getElementById('fix-issue-count');
     diffContent = document.getElementById('fix-diff-content');
     btnApply = document.getElementById('btn-fix-apply');
     btnCancel = document.getElementById('btn-fix-cancel');
     btnScan = document.getElementById('btn-fix-scan');
-    onApplyCallback = onApply;
+    onApplyCallback = options.onApply || null;
+    getSourceCallback = options.getSource || null;
 
     btnApply.addEventListener('click', applyFix);
     btnCancel.addEventListener('click', reset);
@@ -37,17 +39,34 @@ const FixSyntaxManager = (() => {
     currentOriginal = source;
     lastFilePath = filePath;
 
-    const result = await window.api.formatCode(filePath, source);
-    currentFormatted = result.formatted;
-    currentIssues = result.issues || [];
+    setScanningState(true);
 
-    renderIssues();
-    renderDiff();
+    try {
+      const result = await window.api.formatCode(filePath, source);
+      currentFormatted = typeof result.formatted === 'string' ? result.formatted : currentOriginal;
+      currentIssues = Array.isArray(result.issues) ? result.issues : [];
 
-    // Enable apply button only if there are changes
-    const hasChanges = currentOriginal !== currentFormatted;
-    btnApply.disabled = !hasChanges;
-    issueCountBadge.textContent = currentIssues.length || (hasChanges ? '!' : '0');
+      renderIssues();
+      renderDiff();
+
+      // Enable apply button only if there are changes
+      const hasChanges = currentOriginal !== currentFormatted;
+      btnApply.disabled = !hasChanges;
+      issueCountBadge.textContent = String(currentIssues.length || (hasChanges ? '!' : '0'));
+    } catch (err) {
+      currentFormatted = currentOriginal;
+      currentIssues = [{
+        line: 1,
+        message: `Analyse fehlgeschlagen: ${err.message}`,
+        severity: 'error'
+      }];
+      renderIssues();
+      renderDiff();
+      btnApply.disabled = true;
+      issueCountBadge.textContent = String(currentIssues.length);
+    } finally {
+      setScanningState(false);
+    }
   }
 
   function renderIssues() {
@@ -146,7 +165,11 @@ const FixSyntaxManager = (() => {
   }
 
   async function rescan() {
-    if (lastFilePath && currentOriginal) {
+    if (typeof getSourceCallback === 'function') {
+      currentOriginal = getSourceCallback();
+    }
+
+    if (lastFilePath !== null && currentOriginal !== null) {
       await analyze(currentOriginal, lastFilePath);
     }
   }
@@ -156,9 +179,15 @@ const FixSyntaxManager = (() => {
     lastFilePath = filePath;
   }
 
+  function setScanningState(isScanning) {
+    if (!btnScan) return;
+    btnScan.disabled = isScanning;
+    btnScan.classList.toggle('is-loading', isScanning);
+  }
+
   function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { init, analyze, reset, setSource };
+  return { init, analyze, reset, setSource, rescan };
 })();

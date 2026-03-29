@@ -6,3 +6,5 @@ Thumbs.db
 *.exe
 *.blockmap
 builder-effective-config.yaml
+playwright-report/
+test-results/

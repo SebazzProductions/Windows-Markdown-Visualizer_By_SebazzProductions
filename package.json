@@ -6,6 +6,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "dev": "electron .",
+    "test:e2e": "playwright test",
     "build": "electron-builder --win",
     "build:portable": "electron-builder --win portable"
   },
@@ -19,7 +20,9 @@
     "sucrase": "^3.35.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.58.2"
   }
 }
