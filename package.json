@@ -1,28 +1,56 @@
 {
   "name": "markdown-visualizer",
-  "version": "1.0.0",
-  "description": "Hochwertige Markdown-Visualisierung als Desktop-Anwendung",
+  "version": "2.0.0",
+  "description": "Markdown Visualizer – Viewer, Editor und PDF-Export für Markdown und Code-Dateien unter Windows",
   "productName": "Markdown Visualizer",
   "main": "src/main/main.js",
   "scripts": {
     "dev": "electron .",
+    "start": "electron .",
+    "dev:example": "electron . test/example.md",
+    "lint": "eslint .",
     "test:e2e": "playwright test",
+    "test": "npm run lint && npm run test:e2e",
+    "icon": "node scripts/generate-icon.js",
     "build": "electron-builder --win",
-    "build:portable": "electron-builder --win portable"
+    "build:portable": "electron-builder --win portable",
+    "build:dir": "electron-builder --win --dir"
   },
-  "author": "Markdown Visualizer",
+  "author": "SebazzProductions",
   "license": "MIT",
   "dependencies": {
-    "highlight.js": "^11.10.0",
-    "js-beautify": "^1.15.4",
-    "markdown-it": "^14.1.0",
-    "markdown-it-anchor": "^9.2.0",
+    "dompurify": "^3.4.17",
+    "highlight.js": "^11.12.0",
+    "js-beautify": "^2.0.3",
+    "markdown-it": "^15.0.3",
+    "markdown-it-anchor": "^10.1.0",
+    "markdown-it-deflist": "^4.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "prettier": "^3.10.1",
     "sucrase": "^3.35.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8",
-    "playwright": "^1.58.2"
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.65.0",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.1",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "playwright": "^1.65.0"
+  },
+  "homepage": "https://github.com/SebazzProductions/Windows-Markdown-Visualizer_By_SebazzProductions#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SebazzProductions/Windows-Markdown-Visualizer_By_SebazzProductions.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SebazzProductions/Windows-Markdown-Visualizer_By_SebazzProductions/issues"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

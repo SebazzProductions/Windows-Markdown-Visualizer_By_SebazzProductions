@@ -8,3 +8,5 @@ Thumbs.db
 builder-effective-config.yaml
 playwright-report/
 test-results/
+*.zip
+.playwright-cli/
