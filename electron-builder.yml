@@ -1,13 +1,14 @@
 appId: com.markdownvisualizer.app
-productName: Markdown Visualizer
+productName: Mermaid & Markdown Visualizer
 copyright: Copyright © 2026 SebazzProductions
-artifactName: ${productName}-${version}-${arch}-${os}.${ext}
+artifactName: Mermaid-Markdown-Visualizer-${version}-${arch}-${os}.${ext}
 
 directories:
   output: dist
   buildResources: build
 
-# Nur das, was zur Laufzeit gebraucht wird (Dev-Dependencies werden automatisch ausgeschlossen)
+# Nur das, was zur Laufzeit gebraucht wird (Dev-Dependencies werden automatisch ausgeschlossen;
+# Mermaid liegt als fertiges Bundle in src/renderer/vendor)
 files:
   - src/**/*
   - package.json
@@ -39,6 +40,16 @@ win:
     - ext: mdown
       name: Markdown File
       description: Markdown Document
+      role: Editor
+      icon: build/icon.ico
+    - ext: mmd
+      name: Mermaid Diagram
+      description: Mermaid Diagram
+      role: Editor
+      icon: build/icon.ico
+    - ext: mermaid
+      name: Mermaid Diagram
+      description: Mermaid Diagram
       role: Editor
       icon: build/icon.ico
     - ext: html
@@ -94,12 +105,12 @@ nsis:
   createStartMenuShortcut: true
   perMachine: false
   deleteAppDataOnUninstall: false
-  shortcutName: Markdown Visualizer
+  shortcutName: Mermaid & Markdown Visualizer
   installerLanguages: [de_DE, en_US]
   language: 1031
 
 portable:
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: Mermaid-Markdown-Visualizer-${version}-portable.${ext}
 
 publish:
   provider: github

@@ -1,17 +1,19 @@
 {
-  "name": "markdown-visualizer",
-  "version": "2.0.0",
-  "description": "Markdown Visualizer – Viewer, Editor und PDF-Export für Markdown und Code-Dateien unter Windows",
-  "productName": "Markdown Visualizer",
+  "name": "mermaid-markdown-visualizer",
+  "version": "2.1.0",
+  "description": "Mermaid & Markdown Visualizer – Viewer, Editor und PDF-Export für Markdown, Mermaid-Diagramme und Code-Dateien unter Windows",
+  "productName": "Mermaid & Markdown Visualizer",
   "main": "src/main/main.js",
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
     "dev:example": "electron . test/example.md",
+    "dev:diagram": "electron . test/example.mmd",
     "lint": "eslint .",
     "test:e2e": "playwright test",
     "test": "npm run lint && npm run test:e2e",
     "icon": "node scripts/generate-icon.js",
+    "vendor": "node scripts/vendor-mermaid.js",
     "build": "electron-builder --win",
     "build:portable": "electron-builder --win portable",
     "build:dir": "electron-builder --win --dir"
@@ -40,6 +42,7 @@
     "electron-builder": "^26.18.1",
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
+    "mermaid": "^11.17.2",
     "playwright": "^1.65.0"
   },
   "homepage": "https://github.com/SebazzProductions/Windows-Markdown-Visualizer_By_SebazzProductions#readme",

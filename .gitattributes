@@ -2,3 +2,4 @@
 *.ico binary
 *.png binary
 e2e/fixtures/crlf.md -text
+src/renderer/vendor/** -diff linguist-vendored

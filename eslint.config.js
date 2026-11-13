@@ -1,11 +1,11 @@
 const js = require('@eslint/js');
 const globals = require('globals');
 
-const RENDERER_MODULES = ['Toast', 'TOCManager', 'ScrollSpy', 'PDFExport', 'EditorManager', 'PreviewEngine', 'FindBar', 'FixSyntaxManager'];
+const RENDERER_MODULES = ['I18n', 'AppDialog', 'Toast', 'TOCManager', 'ScrollSpy', 'PDFExport', 'EditorManager', 'PreviewEngine', 'FindBar', 'FixSyntaxManager', 'MermaidEngine'];
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'dist/**', 'playwright-report/**', 'test-results/**', 'build/**', 'e2e/fixtures/**']
+    ignores: ['node_modules/**', 'dist/**', 'playwright-report/**', 'test-results/**', 'build/**', 'e2e/fixtures/**', 'src/renderer/vendor/**']
   },
   js.configs.recommended,
   {
@@ -20,6 +20,15 @@ module.exports = [
       ecmaVersion: 2024,
       sourceType: 'commonjs',
       globals: { ...globals.node }
+    }
+  },
+  {
+    // UMD-Modul: läuft in Node (require) und im Renderer (<script>)
+    files: ['src/shared/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'script',
+      globals: { ...globals.node, ...globals.browser }
     }
   },
   {
@@ -38,6 +47,7 @@ module.exports = [
       globals: {
         ...globals.browser,
         DOMPurify: 'readonly',
+        MV_LOCALES: 'readonly',
         Highlight: 'readonly',
         ...Object.fromEntries(RENDERER_MODULES.map(name => [name, 'readonly']))
       }
