@@ -74,12 +74,15 @@ function getSupportedExtensions() {
   return handlers.flatMap(h => h.extensions);
 }
 
-function getDialogFilters() {
+/**
+ * @param {{allSupported?: string, allFiles?: string}} [labels]
+ */
+function getDialogFilters(labels = {}) {
   const filters = handlers
     .filter(h => h.extensions.length > 0)
     .map(h => ({ name: h.label, extensions: h.extensions.map(e => e.slice(1)) }));
-  filters.unshift({ name: 'Alle unterstützten Dateien', extensions: getSupportedExtensions().map(e => e.slice(1)) });
-  filters.push({ name: 'Alle Dateien', extensions: ['*'] });
+  filters.unshift({ name: labels.allSupported || 'Alle unterstützten Dateien', extensions: getSupportedExtensions().map(e => e.slice(1)) });
+  filters.push({ name: labels.allFiles || 'Alle Dateien', extensions: ['*'] });
   return filters;
 }
 

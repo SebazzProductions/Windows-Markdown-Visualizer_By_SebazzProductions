@@ -1,5 +1,5 @@
 /**
- * Markdown Visualizer – Main-Prozess-Einstiegspunkt
+ * Mermaid & Markdown Visualizer – Main-Prozess-Einstiegspunkt
  */
 const { app, BrowserWindow, shell, nativeTheme, screen, session } = require('electron');
 const path = require('path');
@@ -14,6 +14,7 @@ const IS_E2E = process.env.MV_E2E === '1';
 const { settings } = require('./settings');
 const { setupIpcHandlers } = require('./ipc-handlers');
 const { createAppMenu } = require('./menu');
+const { effectiveLanguage } = require('./i18n');
 const { attachContextMenu } = require('./context-menu');
 
 app.setAppUserModelId('com.markdownvisualizer.app');
@@ -210,6 +211,9 @@ app.whenReady().then(() => {
     }
     if (key === 'spellcheck') {
       session.defaultSession.setSpellCheckerEnabled(Boolean(value));
+    }
+    if (key === 'language' && win && !win.isDestroyed()) {
+      win.webContents.send('language-changed', effectiveLanguage());
     }
     if (win && !win.isDestroyed()) {
       win.webContents.send('settings-changed', key, value);

@@ -12,6 +12,7 @@ const MAX_RECENT_FILES = 15;
 
 const DEFAULTS = Object.freeze({
   theme: 'system',            // 'system' | 'light' | 'dark'
+  language: 'system',         // 'system' | 'de' | 'en'
   zoom: 100,                  // 60 … 200 (Prozent)
   tocVisible: true,
   tocWidth: 240,
@@ -68,6 +69,7 @@ class Settings extends EventEmitter {
       : [];
     merged.zoom = clamp(Number(merged.zoom) || 100, 60, 200);
     if (!['system', 'light', 'dark'].includes(merged.theme)) merged.theme = 'system';
+    if (!['system', 'de', 'en'].includes(merged.language)) merged.language = 'system';
     return merged;
   }
 

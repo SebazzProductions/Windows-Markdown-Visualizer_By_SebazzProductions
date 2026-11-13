@@ -32,14 +32,17 @@ function loadCss() {
   return cssCache;
 }
 
-function buildTocHtml(headings) {
+function buildTocHtml(headings, tocTitle) {
   if (!Array.isArray(headings) || headings.length === 0) return '';
   const minLevel = Math.min(...headings.map(h => h.level));
   const items = headings.map(h => {
     const depth = h.level - minLevel;
     return `<li class="pdf-toc-item pdf-toc-level-${h.level}" style="--toc-depth:${depth}"><a href="#${escapeHtml(h.id)}">${escapeHtml(h.text)}</a></li>`;
   }).join('\n');
-  return `<nav class="pdf-toc" aria-label="Inhaltsverzeichnis"><h1 class="pdf-toc-title">Inhaltsverzeichnis</h1><ul>${items}</ul></nav>\n<div class="page-break"></div>\n`;
+  const title = escapeHtml(tocTitle || 'Inhaltsverzeichnis');
+  return `<nav class="pdf-toc" aria-label="${title}"><h1 class="pdf-toc-title">${title}</h1><ul>${items}</ul></nav>
+<div class="page-break"></div>
+`;
 }
 
 /**
@@ -51,18 +54,21 @@ function buildTocHtml(headings) {
  * @param {boolean}[p.includeToc]
  * @param {string} [p.baseHref]    file://-URL des Dokumentordners (für relative Ressourcen)
  * @param {boolean}[p.print]       Druck-Layout (PDF)
+ * @param {string} [p.lang]        Sprache des Dokuments (html lang)
+ * @param {string} [p.tocTitle]    Überschrift des Inhaltsverzeichnisses
  */
 function buildDocumentHtml(p) {
   const theme = p.theme === 'dark' ? 'dark' : 'light';
-  const toc = p.includeToc ? buildTocHtml(p.headings) : '';
+  const toc = p.includeToc ? buildTocHtml(p.headings, p.tocTitle) : '';
+  const lang = p.lang === 'en' ? 'en' : 'de';
   const base = p.baseHref ? `<base href="${escapeHtml(p.baseHref)}">\n` : '';
   const bodyClass = ['export-body', p.print ? 'export-print' : 'export-screen', p.codeView ? 'export-code' : ''].filter(Boolean).join(' ');
   return `<!DOCTYPE html>
-<html lang="de" data-theme="${theme}">
+<html lang="${lang}" data-theme="${theme}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="Markdown Visualizer ${app.getVersion()}">
+<meta name="generator" content="Mermaid & Markdown Visualizer ${app.getVersion()}">
 <title>${escapeHtml(p.title || 'Dokument')}</title>
 ${base}<style>
 ${loadCss()}
@@ -163,7 +169,9 @@ async function exportPdf(payload) {
     includeToc: Boolean(options.includeToc) && !payload.codeView,
     baseHref: payload.baseDir ? pathToFileURL(payload.baseDir + path.sep).href : null,
     print: true,
-    codeView: Boolean(payload.codeView)
+    codeView: Boolean(payload.codeView),
+    lang: payload.lang,
+    tocTitle: payload.tocTitle
   });
 
   const tempFile = await writeTempHtml(html);
@@ -229,10 +237,25 @@ async function exportHtml(payload) {
     includeToc: Boolean(options.includeToc) && !payload.codeView,
     baseHref: options.embedImages === false && payload.baseDir ? pathToFileURL(payload.baseDir + path.sep).href : null,
     print: false,
-    codeView: Boolean(payload.codeView)
+    codeView: Boolean(payload.codeView),
+    lang: payload.lang,
+    tocTitle: payload.tocTitle
   });
   await fs.promises.writeFile(payload.outputPath, html, 'utf-8');
   return { success: true, filePath: payload.outputPath, bytes: Buffer.byteLength(html, 'utf-8') };
 }
 
-module.exports = { exportPdf, exportHtml, buildDocumentHtml, buildTocHtml, embedLocalImages };
+/**
+ * Diagramm als eigenständige SVG-Datei speichern.
+ * @param {{svg: string, outputPath: string}} payload
+ */
+async function exportSvg(payload) {
+  let svg = String(payload.svg || '').trim();
+  if (!/^<svg[\s>]/i.test(svg)) throw new Error('Kein gültiges SVG');
+  if (!/\sxmlns=/.test(svg.slice(0, 300))) svg = svg.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  const out = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n${svg}\n`;
+  await fs.promises.writeFile(payload.outputPath, out, 'utf-8');
+  return { success: true, filePath: payload.outputPath, bytes: Buffer.byteLength(out, 'utf-8') };
+}
+
+module.exports = { exportPdf, exportHtml, exportSvg, buildDocumentHtml, buildTocHtml, embedLocalImages };

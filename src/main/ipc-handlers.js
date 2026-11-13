@@ -5,13 +5,14 @@ const { ipcMain, dialog, BrowserWindow, shell, clipboard, app, nativeTheme } = r
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { renderMarkdown } = require('./markdown-engine');
+const { renderMarkdown, extractHeadings } = require('./markdown-engine');
 const { highlightCode } = require('./highlighter');
 const { getHandler, getLanguageFor, getSupportedExtensions, getDialogFilters, getAllFormats } = require('./format-registry');
 const { readTextFile, writeTextFile, FileWatcher } = require('./file-service');
-const { exportPdf, exportHtml } = require('./export-service');
+const { exportPdf, exportHtml, exportSvg } = require('./export-service');
 const { settings } = require('./settings');
 const { popupAppMenu } = require('./menu');
+const { t, effectiveLanguage } = require('./i18n');
 
 require('./formats');
 
@@ -26,8 +27,12 @@ function windowOf(event) {
 }
 
 function effectiveTheme() {
-  const t = settings.get('theme');
-  return t === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : t;
+  const th = settings.get('theme');
+  return th === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : th;
+}
+
+function dialogFilters() {
+  return getDialogFilters({ allSupported: t('dialog.allSupported'), allFiles: t('dialog.allFiles') });
 }
 
 function describeHandler(handler, filePath) {
@@ -40,6 +45,21 @@ function describeHandler(handler, filePath) {
     canFormat: typeof handler.format === 'function',
     canExecute: handler.id === 'javascript' || handler.id === 'typescript'
   };
+}
+
+/**
+ * Zielpfad für einen Export ermitteln: entweder vorgegeben (Tests) oder per Speichern-Dialog.
+ */
+async function resolveExportPath(win, state, payload, { title, defaultName, filterName, extensions }) {
+  if (typeof payload.targetPath === 'string' && payload.targetPath.trim()) return path.resolve(payload.targetPath);
+  const dir = state.currentFilePath ? path.dirname(state.currentFilePath) : app.getPath('documents');
+  const saveResult = await dialog.showSaveDialog(win, {
+    title,
+    defaultPath: path.join(dir, payload.defaultFileName || defaultName),
+    filters: [{ name: filterName, extensions }]
+  });
+  if (saveResult.canceled || !saveResult.filePath) return null;
+  return saveResult.filePath;
 }
 
 function setupIpcHandlers({ getInitialFile, state }) {
@@ -58,7 +78,11 @@ function setupIpcHandlers({ getInitialFile, state }) {
     formats: getAllFormats()
   }));
 
-  ipcMain.handle('get-settings', () => ({ ...settings.getAll(), effectiveTheme: effectiveTheme() }));
+  ipcMain.handle('get-settings', () => ({
+    ...settings.getAll(),
+    effectiveTheme: effectiveTheme(),
+    effectiveLanguage: effectiveLanguage()
+  }));
   ipcMain.handle('set-setting', (_e, key, value) => settings.set(key, value));
   ipcMain.handle('get-recent-files', () => {
     const list = settings.get('recentFiles').filter(p => {
@@ -71,7 +95,8 @@ function setupIpcHandlers({ getInitialFile, state }) {
   ipcMain.handle('clear-recent-files', () => settings.clearRecentFiles());
 
   // ---- Rendering ----
-  ipcMain.handle('render-markdown', (_e, source) => renderMarkdown(source));
+  ipcMain.handle('render-markdown', (_e, source) => renderMarkdown(source, { frontMatterLabel: t('exportDoc.frontMatter') }));
+  ipcMain.handle('extract-headings', (_e, source) => extractHeadings(source));
   ipcMain.handle('highlight-code', (_e, source, lang) => highlightCode(source, lang));
 
   ipcMain.handle('detect-format', (_e, filePath, content) => {
@@ -88,7 +113,7 @@ function setupIpcHandlers({ getInitialFile, state }) {
       const result = await handler.format(source, filePath);
       return { formatted: typeof result.formatted === 'string' ? result.formatted : source, issues: Array.isArray(result.issues) ? result.issues : [] };
     } catch (err) {
-      return { formatted: source, issues: [{ line: 1, message: `Analyse fehlgeschlagen: ${err.message}`, severity: 'error' }] };
+      return { formatted: source, issues: [{ line: 1, message: t('fix.failed', { error: err.message }), severity: 'error' }] };
     }
   });
 
@@ -157,9 +182,9 @@ function setupIpcHandlers({ getInitialFile, state }) {
     const win = windowOf(event);
     const defaultPath = state.currentFilePath ? path.dirname(state.currentFilePath) : undefined;
     const result = await dialog.showOpenDialog(win, {
-      title: 'Datei öffnen',
+      title: t('dialog.open'),
       defaultPath,
-      filters: getDialogFilters(),
+      filters: dialogFilters(),
       properties: ['openFile']
     });
     if (result.canceled || result.filePaths.length === 0) return null;
@@ -181,9 +206,9 @@ function setupIpcHandlers({ getInitialFile, state }) {
     const win = windowOf(event);
     const dir = state.currentFilePath ? path.dirname(state.currentFilePath) : app.getPath('documents');
     const result = await dialog.showSaveDialog(win, {
-      title: 'Speichern unter',
+      title: t('dialog.saveAs'),
       defaultPath: path.join(dir, defaultName || 'unbenannt.md'),
-      filters: getDialogFilters()
+      filters: dialogFilters()
     });
     if (result.canceled || !result.filePath) return { success: false, canceled: true };
     const written = await writeTextFile(result.filePath, content, options || {});
@@ -234,7 +259,7 @@ function setupIpcHandlers({ getInitialFile, state }) {
 
   ipcMain.handle('set-title', (event, title) => {
     const win = windowOf(event);
-    if (win) win.setTitle(title || 'Markdown Visualizer');
+    if (win) win.setTitle(title || t('app.name'));
   });
 
   ipcMain.handle('set-document-state', (_e, docState) => {
@@ -243,39 +268,9 @@ function setupIpcHandlers({ getInitialFile, state }) {
   });
 
   // ---- Dialoge ----
-  ipcMain.handle('confirm-discard', async (event, fileName) => {
-    const win = windowOf(event);
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'warning',
-      title: 'Ungespeicherte Änderungen',
-      message: `„${fileName || 'Unbenannt'}“ enthält ungespeicherte Änderungen.`,
-      detail: 'Möchten Sie die Änderungen speichern, bevor Sie fortfahren?',
-      buttons: ['Speichern', 'Verwerfen', 'Abbrechen'],
-      defaultId: 0,
-      cancelId: 2,
-      noLink: true
-    });
-    return ['save', 'discard', 'cancel'][response];
-  });
-
-  ipcMain.handle('confirm-reload-external', async (event, fileName) => {
-    const win = windowOf(event);
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'question',
-      title: 'Datei extern geändert',
-      message: `„${fileName}“ wurde außerhalb der Anwendung geändert.`,
-      detail: 'Sie haben ungespeicherte Änderungen. Datei neu laden und eigene Änderungen verwerfen?',
-      buttons: ['Neu laden', 'Meine Version behalten'],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true
-    });
-    return response === 0 ? 'reload' : 'keep';
-  });
-
   ipcMain.handle('show-message', async (event, { type = 'info', title, message, detail }) => {
     const win = windowOf(event);
-    await dialog.showMessageBox(win, { type, title: title || 'Markdown Visualizer', message: String(message || ''), detail, buttons: ['OK'], noLink: true });
+    await dialog.showMessageBox(win, { type, title: title || t('app.name'), message: String(message || ''), detail, buttons: [t('common.ok')], noLink: true });
   });
 
   ipcMain.handle('confirm-close', (event) => {
@@ -289,17 +284,10 @@ function setupIpcHandlers({ getInitialFile, state }) {
   // ---- Export ----
   ipcMain.handle('export-pdf', async (event, payload = {}) => {
     const win = windowOf(event);
-    let outputPath = typeof payload.targetPath === 'string' && payload.targetPath.trim() ? path.resolve(payload.targetPath) : null;
-    if (!outputPath) {
-      const dir = state.currentFilePath ? path.dirname(state.currentFilePath) : app.getPath('documents');
-      const saveResult = await dialog.showSaveDialog(win, {
-        title: 'PDF exportieren',
-        defaultPath: path.join(dir, payload.defaultFileName || 'dokument.pdf'),
-        filters: [{ name: 'PDF-Dateien', extensions: ['pdf'] }]
-      });
-      if (saveResult.canceled || !saveResult.filePath) return { success: false, canceled: true };
-      outputPath = saveResult.filePath;
-    }
+    const outputPath = await resolveExportPath(win, state, payload, {
+      title: t('dialog.exportPdf'), defaultName: 'dokument.pdf', filterName: t('dialog.pdfFiles'), extensions: ['pdf']
+    });
+    if (!outputPath) return { success: false, canceled: true };
     if (payload.options) settings.set('pdf', {
       includeToc: Boolean(payload.options.includeToc),
       pageSize: payload.options.pageSize,
@@ -309,7 +297,7 @@ function setupIpcHandlers({ getInitialFile, state }) {
       outline: Boolean(payload.options.outline)
     });
     try {
-      return await exportPdf({ ...payload, outputPath });
+      return await exportPdf({ ...payload, outputPath, lang: effectiveLanguage(), tocTitle: t('exportDoc.toc') });
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -317,19 +305,25 @@ function setupIpcHandlers({ getInitialFile, state }) {
 
   ipcMain.handle('export-html', async (event, payload = {}) => {
     const win = windowOf(event);
-    let outputPath = typeof payload.targetPath === 'string' && payload.targetPath.trim() ? path.resolve(payload.targetPath) : null;
-    if (!outputPath) {
-      const dir = state.currentFilePath ? path.dirname(state.currentFilePath) : app.getPath('documents');
-      const saveResult = await dialog.showSaveDialog(win, {
-        title: 'Als HTML exportieren',
-        defaultPath: path.join(dir, payload.defaultFileName || 'dokument.html'),
-        filters: [{ name: 'HTML-Dateien', extensions: ['html'] }]
-      });
-      if (saveResult.canceled || !saveResult.filePath) return { success: false, canceled: true };
-      outputPath = saveResult.filePath;
-    }
+    const outputPath = await resolveExportPath(win, state, payload, {
+      title: t('dialog.exportHtml'), defaultName: 'dokument.html', filterName: t('dialog.htmlFiles'), extensions: ['html']
+    });
+    if (!outputPath) return { success: false, canceled: true };
     try {
-      return await exportHtml({ ...payload, outputPath });
+      return await exportHtml({ ...payload, outputPath, lang: effectiveLanguage(), tocTitle: t('exportDoc.toc') });
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('export-svg', async (event, payload = {}) => {
+    const win = windowOf(event);
+    const outputPath = await resolveExportPath(win, state, payload, {
+      title: t('dialog.exportSvg'), defaultName: 'diagramm.svg', filterName: t('dialog.svgFiles'), extensions: ['svg']
+    });
+    if (!outputPath) return { success: false, canceled: true };
+    try {
+      return await exportSvg({ ...payload, outputPath });
     } catch (err) {
       return { success: false, error: err.message };
     }

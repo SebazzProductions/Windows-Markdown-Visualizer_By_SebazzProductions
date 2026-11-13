@@ -11,6 +11,7 @@ const EVENT_CHANNELS = new Set([
   'command',
   'settings-changed',
   'theme-changed',
+  'language-changed',
   'request-close'
 ]);
 
@@ -35,6 +36,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Rendering
   renderMarkdown: (source) => ipcRenderer.invoke('render-markdown', source),
+  extractHeadings: (source) => ipcRenderer.invoke('extract-headings', source),
   highlightCode: (source, lang) => ipcRenderer.invoke('highlight-code', source, lang),
   detectFormat: (filePath, content) => ipcRenderer.invoke('detect-format', filePath, content),
   getLanguageFor: (filePath, content) => ipcRenderer.invoke('get-language-for', filePath, content),
@@ -53,15 +55,14 @@ contextBridge.exposeInMainWorld('api', {
   setDocumentState: (docState) => ipcRenderer.invoke('set-document-state', docState),
   getDroppedFilePath: (file) => webUtils.getPathForFile(file),
 
-  // Dialoge
-  confirmDiscard: (fileName) => ipcRenderer.invoke('confirm-discard', fileName),
-  confirmReloadExternal: (fileName) => ipcRenderer.invoke('confirm-reload-external', fileName),
+  // Dialoge / Fenster
   showMessage: (options) => ipcRenderer.invoke('show-message', options),
   confirmClose: () => ipcRenderer.invoke('confirm-close'),
 
   // Export
   exportPDF: (payload) => ipcRenderer.invoke('export-pdf', payload),
   exportHTML: (payload) => ipcRenderer.invoke('export-html', payload),
+  exportSVG: (payload) => ipcRenderer.invoke('export-svg', payload),
 
   // Shell / System
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),

@@ -1,6 +1,7 @@
 /**
  * Lädt alle Format-Handler (Registrierungsreihenfolge = Reihenfolge der Inhaltserkennung).
  */
+require('./mermaid-handler');
 require('./markdown-handler');
 require('./html-handler');
 require('./json-handler');

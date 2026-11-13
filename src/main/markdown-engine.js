@@ -117,12 +117,16 @@ function splitFrontMatter(source) {
   return { body: source.slice(match[0].length), frontMatter: match[1], offsetLines };
 }
 
-function renderFrontMatter(yaml) {
+function renderFrontMatter(yaml, label) {
   if (!yaml || !yaml.trim()) return '';
-  return `<details class="front-matter"><summary>Metadaten (Front Matter)</summary><pre><code class="hljs language-yaml">${highlightCode(yaml, 'yaml').html}</code></pre></details>\n`;
+  return `<details class="front-matter"><summary>${md.utils.escapeHtml(label || 'Front Matter')}</summary><pre><code class="hljs language-yaml">${highlightCode(yaml, 'yaml').html}</code></pre></details>\n`;
 }
 
-function renderMarkdown(source) {
+/**
+ * @param {string} source
+ * @param {{frontMatterLabel?: string}} [options]
+ */
+function renderMarkdown(source, options = {}) {
   const normalized = String(source || '').replace(/\r\n?/g, '\n');
   const { body, frontMatter, offsetLines } = splitFrontMatter(normalized);
 
@@ -138,15 +142,24 @@ function renderMarkdown(source) {
     html = html.replace(/data-source-line="(\d+)"/g, (_m, n) => `data-source-line="${Number(n) + offsetLines}"`);
   }
 
-  return { html: renderFrontMatter(frontMatter) + html, headings };
+  return { html: renderFrontMatter(frontMatter, options.frontMatterLabel) + html, headings };
 }
 
 function renderMarkdownToHtml(source) {
   return renderMarkdown(source).html;
 }
 
+/**
+ * Nur die Überschriften ermitteln (Parser-Lauf ohne Rendering – für die TOC-Aktualisierung im Editor).
+ */
 function extractHeadings(source) {
-  return renderMarkdown(source).headings;
+  const normalized = String(source || '').replace(/\r\n?/g, '\n');
+  const { body, offsetLines } = splitFrontMatter(normalized);
+  collectedHeadings = [];
+  md.parse(body, {});
+  const headings = collectedHeadings.map(h => ({ ...h, line: h.line === null ? null : h.line + offsetLines }));
+  collectedHeadings = [];
+  return headings;
 }
 
 module.exports = { renderMarkdown, renderMarkdownToHtml, extractHeadings, slugify };
