@@ -1,175 +1,249 @@
 /**
- * Fix Syntax Manager - analyze, diff, and apply formatting fixes
+ * Fix Syntax Manager – Analyse, Diff (LCS) und Übernahme von Formatierungs-Korrekturen
  */
 const FixSyntaxManager = (() => {
-  let issuesContent = null;
-  let issueCountBadge = null;
-  let diffContent = null;
-  let btnApply = null;
-  let btnCancel = null;
-
-  let btnScan = null;
+  let issuesContent, issueCountBadge, diffContent, diffStats, summaryEl;
+  let btnApply, btnCancel, btnScan;
 
   let currentOriginal = '';
   let currentFormatted = '';
   let currentIssues = [];
   let onApplyCallback = null;
   let getSourceCallback = null;
+  let onGotoLine = null;
   let lastFilePath = null;
+  let scanSeq = 0;
+
+  const DIFF_MAX_CELLS = 6_000_000; // LCS-Tabelle (Uint16) – darüber vereinfachter Diff
+  const CONTEXT_LINES = 3;
 
   function init(options = {}) {
     issuesContent = document.getElementById('fix-issues-content');
     issueCountBadge = document.getElementById('fix-issue-count');
     diffContent = document.getElementById('fix-diff-content');
+    diffStats = document.getElementById('fix-diff-stats');
+    summaryEl = document.getElementById('fix-summary');
     btnApply = document.getElementById('btn-fix-apply');
     btnCancel = document.getElementById('btn-fix-cancel');
     btnScan = document.getElementById('btn-fix-scan');
     onApplyCallback = options.onApply || null;
     getSourceCallback = options.getSource || null;
+    onGotoLine = options.onGotoLine || null;
 
     btnApply.addEventListener('click', applyFix);
     btnCancel.addEventListener('click', reset);
     btnScan.addEventListener('click', rescan);
+
+    issuesContent.addEventListener('click', (e) => {
+      const item = e.target.closest('.issue-item');
+      if (item && onGotoLine) onGotoLine(Number(item.dataset.line) || 1);
+    });
+    diffContent.addEventListener('click', (e) => {
+      const line = e.target.closest('.diff-line');
+      if (line && onGotoLine && line.dataset.origLine) onGotoLine(Number(line.dataset.origLine));
+    });
   }
 
-  /**
-   * Analyze source and show issues + diff
-   */
   async function analyze(source, filePath) {
     currentOriginal = source;
     lastFilePath = filePath;
-
+    const seq = ++scanSeq;
     setScanningState(true);
 
     try {
-      const result = await window.api.formatCode(filePath, source);
+      const result = await window.api.formatCode(filePath || '.txt', source);
+      if (seq !== scanSeq) return; // veraltetes Ergebnis
       currentFormatted = typeof result.formatted === 'string' ? result.formatted : currentOriginal;
       currentIssues = Array.isArray(result.issues) ? result.issues : [];
-
-      renderIssues();
-      renderDiff();
-
-      // Enable apply button only if there are changes
-      const hasChanges = currentOriginal !== currentFormatted;
-      btnApply.disabled = !hasChanges;
-      issueCountBadge.textContent = String(currentIssues.length || (hasChanges ? '!' : '0'));
     } catch (err) {
+      if (seq !== scanSeq) return;
       currentFormatted = currentOriginal;
-      currentIssues = [{
-        line: 1,
-        message: `Analyse fehlgeschlagen: ${err.message}`,
-        severity: 'error'
-      }];
-      renderIssues();
-      renderDiff();
-      btnApply.disabled = true;
-      issueCountBadge.textContent = String(currentIssues.length);
+      currentIssues = [{ line: 1, message: `Analyse fehlgeschlagen: ${err.message}`, severity: 'error' }];
     } finally {
-      setScanningState(false);
+      if (seq === scanSeq) setScanningState(false);
+    }
+
+    renderIssues();
+    renderDiff();
+    const hasChanges = currentOriginal !== currentFormatted;
+    btnApply.disabled = !hasChanges;
+    const count = currentIssues.length;
+    issueCountBadge.textContent = String(count || (hasChanges ? '!' : '0'));
+    issueCountBadge.classList.toggle('is-zero', count === 0 && !hasChanges);
+    if (summaryEl) {
+      const errors = currentIssues.filter(i => i.severity === 'error').length;
+      const warnings = currentIssues.filter(i => i.severity === 'warning').length;
+      const parts = [];
+      if (errors) parts.push(`${errors} Fehler`);
+      if (warnings) parts.push(`${warnings} ${warnings === 1 ? 'Warnung' : 'Warnungen'}`);
+      const infos = count - errors - warnings;
+      if (infos) parts.push(`${infos} ${infos === 1 ? 'Hinweis' : 'Hinweise'}`);
+      summaryEl.textContent = parts.join(' · ') || (hasChanges ? 'Formatierung kann verbessert werden' : 'Alles in Ordnung');
     }
   }
 
   function renderIssues() {
     if (!issuesContent) return;
-
-    if (currentIssues.length === 0 && currentOriginal === currentFormatted) {
-      issuesContent.innerHTML = '<p class="fix-placeholder">Keine Probleme gefunden.</p>';
+    if (currentIssues.length === 0) {
+      issuesContent.innerHTML = `<p class="fix-placeholder">${currentOriginal === currentFormatted ? 'Keine Probleme gefunden.' : 'Formatierung kann verbessert werden – siehe Vorschau.'}</p>`;
       return;
     }
-
-    if (currentIssues.length === 0 && currentOriginal !== currentFormatted) {
-      issuesContent.innerHTML = '<p class="fix-placeholder">Formatierung kann verbessert werden.</p>';
-      return;
-    }
-
-    const html = currentIssues.map(issue => {
-      const severity = issue.severity || 'info';
-      return `<div class="issue-item issue-severity-${severity}">
-        <span class="issue-line">Z.${issue.line || '?'}</span>
+    const icon = { error: 'i-error', warning: 'i-alert', info: 'i-info' };
+    issuesContent.innerHTML = currentIssues.map(issue => {
+      const severity = ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info';
+      return `<button type="button" class="issue-item issue-severity-${severity}" data-line="${Number(issue.line) || 1}" title="Zur Zeile ${Number(issue.line) || 1} springen">
+        <svg class="issue-icon"><use href="#${icon[severity]}"/></svg>
+        <span class="issue-line">Z. ${Number(issue.line) || '?'}</span>
         <span class="issue-message">${escapeHtml(issue.message)}</span>
-      </div>`;
+      </button>`;
     }).join('');
-
-    issuesContent.innerHTML = html;
   }
 
   function renderDiff() {
     if (!diffContent) return;
-
     if (currentOriginal === currentFormatted) {
       diffContent.innerHTML = '<p class="fix-placeholder">Keine Änderungen erforderlich.</p>';
+      if (diffStats) diffStats.textContent = '';
       return;
     }
-
     const origLines = currentOriginal.split('\n');
     const formLines = currentFormatted.split('\n');
-    const diffHtml = buildLineDiff(origLines, formLines);
-    diffContent.innerHTML = diffHtml;
+    const ops = diffLines(origLines, formLines);
+    const added = ops.filter(o => o.type === 'added').length;
+    const removed = ops.filter(o => o.type === 'removed').length;
+    if (diffStats) diffStats.innerHTML = `<span class="added">+${added}</span> <span class="removed">−${removed}</span>`;
+    diffContent.innerHTML = renderOps(ops);
   }
 
   /**
-   * Simple line-by-line diff
+   * Zeilen-Diff: gemeinsame Prefix/Suffix abtrennen, Rest per LCS (DP), Fallback naiv.
+   * @returns {Array<{type:'unchanged'|'added'|'removed', text:string, o?:number, f?:number}>}
    */
-  function buildLineDiff(origLines, formLines) {
-    const maxLen = Math.max(origLines.length, formLines.length);
-    let html = '';
-    let oi = 0, fi = 0;
+  function diffLines(a, b) {
+    let start = 0;
+    while (start < a.length && start < b.length && a[start] === b[start]) start++;
+    let endA = a.length, endB = b.length;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
 
-    while (oi < origLines.length || fi < formLines.length) {
-      const origLine = oi < origLines.length ? origLines[oi] : undefined;
-      const formLine = fi < formLines.length ? formLines[fi] : undefined;
+    const ops = [];
+    for (let i = 0; i < start; i++) ops.push({ type: 'unchanged', text: a[i], o: i + 1, f: i + 1 });
 
-      if (origLine === formLine) {
-        html += diffLineHtml(oi + 1, 'unchanged', origLine);
-        oi++;
-        fi++;
-      } else if (origLine !== undefined && formLine !== undefined) {
-        // Changed line: show removed then added
-        html += diffLineHtml(oi + 1, 'removed', origLine);
-        html += diffLineHtml(fi + 1, 'added', formLine);
-        oi++;
-        fi++;
-      } else if (origLine !== undefined) {
-        html += diffLineHtml(oi + 1, 'removed', origLine);
-        oi++;
-      } else {
-        html += diffLineHtml(fi + 1, 'added', formLine);
-        fi++;
+    const midA = a.slice(start, endA);
+    const midB = b.slice(start, endB);
+    const mid = (midA.length * midB.length <= DIFF_MAX_CELLS) ? lcsDiff(midA, midB) : naiveDiff(midA, midB);
+    for (const op of mid) {
+      if (op.o !== undefined) op.o += start;
+      if (op.f !== undefined) op.f += start;
+      ops.push(op);
+    }
+    for (let i = 0; i < a.length - endA; i++) {
+      ops.push({ type: 'unchanged', text: a[endA + i], o: endA + i + 1, f: endB + i + 1 });
+    }
+    return ops;
+  }
+
+  function lcsDiff(a, b) {
+    const n = a.length, m = b.length;
+    if (n === 0) return b.map((t, j) => ({ type: 'added', text: t, f: j + 1 }));
+    if (m === 0) return a.map((t, i) => ({ type: 'removed', text: t, o: i + 1 }));
+    const width = m + 1;
+    const dp = new Uint16Array((n + 1) * width);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i * width + j] = a[i] === b[j]
+          ? dp[(i + 1) * width + j + 1] + 1
+          : Math.max(dp[(i + 1) * width + j], dp[i * width + j + 1]);
       }
     }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) {
+        ops.push({ type: 'unchanged', text: a[i], o: i + 1, f: j + 1 });
+        i++; j++;
+      } else if (dp[(i + 1) * width + j] >= dp[i * width + j + 1]) {
+        ops.push({ type: 'removed', text: a[i], o: i + 1 });
+        i++;
+      } else {
+        ops.push({ type: 'added', text: b[j], f: j + 1 });
+        j++;
+      }
+    }
+    while (i < n) { ops.push({ type: 'removed', text: a[i], o: i + 1 }); i++; }
+    while (j < m) { ops.push({ type: 'added', text: b[j], f: j + 1 }); j++; }
+    return ops;
+  }
+
+  function naiveDiff(a, b) {
+    const ops = [];
+    const len = Math.max(a.length, b.length);
+    for (let k = 0; k < len; k++) {
+      if (k < a.length && k < b.length && a[k] === b[k]) {
+        ops.push({ type: 'unchanged', text: a[k], o: k + 1, f: k + 1 });
+      } else {
+        if (k < a.length) ops.push({ type: 'removed', text: a[k], o: k + 1 });
+        if (k < b.length) ops.push({ type: 'added', text: b[k], f: k + 1 });
+      }
+    }
+    return ops;
+  }
+
+  /**
+   * Nur geänderte Bereiche mit Kontext anzeigen; lange unveränderte Blöcke zusammenfalten.
+   */
+  function renderOps(ops) {
+    const keep = new Array(ops.length).fill(false);
+    for (let i = 0; i < ops.length; i++) {
+      if (ops[i].type !== 'unchanged') {
+        for (let k = Math.max(0, i - CONTEXT_LINES); k <= Math.min(ops.length - 1, i + CONTEXT_LINES); k++) keep[k] = true;
+      }
+    }
+    let html = '';
+    let skipped = 0;
+    let lastOrigLine = 0;
+    const flushSkip = () => {
+      if (skipped > 0) {
+        html += `<div class="diff-skip">… ${skipped} unveränderte ${skipped === 1 ? 'Zeile' : 'Zeilen'}</div>`;
+        skipped = 0;
+      }
+    };
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      if (!keep[i]) { skipped++; continue; }
+      flushSkip();
+      if (op.o) lastOrigLine = op.o;
+      const num = op.type === 'added' ? op.f : op.o;
+      const origLine = op.o || lastOrigLine || 1;
+      html += `<div class="diff-line ${op.type}" data-orig-line="${origLine}" title="Zur Zeile ${origLine} im Editor springen">
+        <span class="diff-line-num">${num ?? ''}</span>
+        <span class="diff-line-content">${escapeHtml(op.text || '')}</span>
+      </div>`;
+    }
+    flushSkip();
     return html;
   }
 
-  function diffLineHtml(lineNum, type, content) {
-    return `<div class="diff-line ${type}">
-      <span class="diff-line-num">${lineNum}</span>
-      <span class="diff-line-content">${escapeHtml(content || '')}</span>
-    </div>`;
-  }
-
   function applyFix() {
-    if (onApplyCallback && currentFormatted) {
-      onApplyCallback(currentFormatted);
-    }
-    // Don't reset - let app.js handle refresh
+    if (onApplyCallback && currentFormatted) onApplyCallback(currentFormatted);
   }
 
   function reset() {
+    scanSeq++;
     currentOriginal = '';
     currentFormatted = '';
     currentIssues = [];
     if (issuesContent) issuesContent.innerHTML = '<p class="fix-placeholder">Keine Probleme gefunden.</p>';
     if (diffContent) diffContent.innerHTML = '<p class="fix-placeholder">Kein Diff verfügbar.</p>';
-    if (issueCountBadge) issueCountBadge.textContent = '0';
+    if (diffStats) diffStats.textContent = '';
+    if (summaryEl) summaryEl.textContent = '';
+    if (issueCountBadge) { issueCountBadge.textContent = '0'; issueCountBadge.classList.add('is-zero'); }
     if (btnApply) btnApply.disabled = true;
+    setScanningState(false);
   }
 
   async function rescan() {
-    if (typeof getSourceCallback === 'function') {
-      currentOriginal = getSourceCallback();
-    }
-
-    if (lastFilePath !== null && currentOriginal !== null) {
+    if (typeof getSourceCallback === 'function') currentOriginal = getSourceCallback();
+    if (currentOriginal !== null && currentOriginal !== undefined) {
       await analyze(currentOriginal, lastFilePath);
     }
   }
@@ -186,8 +260,8 @@ const FixSyntaxManager = (() => {
   }
 
   function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { init, analyze, reset, setSource, rescan };
+  return { init, analyze, reset, setSource, rescan, diffLines };
 })();

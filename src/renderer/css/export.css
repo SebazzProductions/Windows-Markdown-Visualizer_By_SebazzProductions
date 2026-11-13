@@ -1,0 +1,91 @@
+/* =============================================
+   EXPORT STYLES – nur in HTML-/PDF-Exporten eingebettet
+   ============================================= */
+
+html { font-size: 16px; }
+
+body.export-body {
+  margin: 0;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.export-screen .markdown-body.export {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 4rem;
+}
+
+body.export-print {
+  font-size: 11pt;
+}
+body.export-print .markdown-body.export { padding: 0; }
+body.export-print .markdown-article { line-height: 1.6; }
+
+.markdown-article {
+  font-size: 1rem;
+}
+
+/* Interaktive Elemente nicht exportieren */
+.code-copy { display: none !important; }
+.markdown-article pre:hover::before { opacity: 1; }
+
+/* Links im Druck lesbar halten */
+body.export-print .markdown-article a { color: var(--accent-color); border-bottom: none; }
+
+/* ---- Inhaltsverzeichnis ---- */
+.pdf-toc { margin: 0 0 2em; }
+.pdf-toc-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  margin: 0 0 0.8em;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid var(--border-light);
+}
+.pdf-toc ul { list-style: none; padding: 0; margin: 0; }
+.pdf-toc-item {
+  padding: 0.25em 0;
+  padding-left: calc(var(--toc-depth, 0) * 1.4em);
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+.pdf-toc-item.pdf-toc-level-1 { font-weight: 600; }
+.pdf-toc-item.pdf-toc-level-1 + .pdf-toc-item.pdf-toc-level-1 { margin-top: 0.3em; }
+.pdf-toc-item a { color: var(--accent-color); text-decoration: none; }
+
+.page-break { page-break-after: always; break-after: page; }
+
+/* ---- Druck / PDF ---- */
+@media print {
+  html, body { background: #fff; }
+  .markdown-article h1, .markdown-article h2, .markdown-article h3,
+  .markdown-article h4, .markdown-article h5, .markdown-article h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .markdown-article pre, .markdown-article blockquote, .markdown-article table,
+  .markdown-article img, .markdown-article figure {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .markdown-article pre code,
+  .code-view pre code {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: visible;
+  }
+  .markdown-article table { display: table; overflow: visible; }
+  .markdown-article tbody tr:hover { background: inherit; }
+  .markdown-article p, .markdown-article li { orphans: 3; widows: 3; }
+  .code-view { box-shadow: none; }
+  .markdown-article pre, .markdown-article table, .markdown-article img { box-shadow: none; }
+  .markdown-article details { break-inside: avoid; }
+  .markdown-article details:not([open]) > :not(summary) { display: none; }
+}
+
+/* Code-Export (Code-Datei als Dokument) */
+body.export-code .code-view { font-size: 0.8em; }
+body.export-code .code-view-gutter { white-space: pre; }

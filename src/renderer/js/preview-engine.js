@@ -1,19 +1,39 @@
 /**
- * Preview Engine - handles visualization for all formats
- * Markdown → rendered HTML, HTML → iframe, CSS → preview panel,
- * JS/TS → highlighted code or iframe execution, JSON → pretty-printed
+ * Preview Engine – Darstellung aller Formate im Visualizer
+ *  Markdown → bereinigtes HTML (DOMPurify) im Artikel-Container
+ *  HTML     → sandboxed iframe mit eingebetteten lokalen Assets
+ *  CSS      → iframe mit Beispiel-Elementen
+ *  JS/TS    → Code-Ansicht mit Highlighting ODER Ausführung im iframe + Konsole
+ *  JSON     → formatiert + Highlighting
+ *  Sonstige → Code-Ansicht mit Zeilennummern
  */
 const PreviewEngine = (() => {
   let markdownContainer = null;
+  let article = null;
   let previewIframe = null;
   let consolePanel = null;
   let consoleOutput = null;
   let btnRunCode = null;
-  let executionMode = false; // false = highlight, true = execute
+  let executionMode = false;
   let activeObjectUrl = null;
+  let currentView = 'markdown'; // 'markdown' | 'code' | 'iframe'
+
+  const HIGHLIGHT_MAX_CHARS = 1.5 * 1024 * 1024;
+
+  const PURIFY_CONFIG = {
+    USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
+    ADD_TAGS: ['details', 'summary', 'kbd', 'mark', 'sub', 'sup', 'abbr', 'figure', 'figcaption', 'input', 'label', 'section', 'nav'],
+    ADD_ATTR: ['data-source-line', 'data-lang', 'align', 'width', 'height', 'checked', 'disabled', 'type', 'open', 'start', 'colspan', 'rowspan', 'for', 'id', 'class', 'title', 'alt', 'loading'],
+    FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'base', 'link', 'meta'],
+    FORBID_ATTR: ['onerror', 'onload', 'style'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|file|data):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOW_DATA_ATTR: true,
+    RETURN_TRUSTED_TYPE: false
+  };
 
   function init() {
     markdownContainer = document.getElementById('markdown-content');
+    article = document.getElementById('markdown-article');
     previewIframe = document.getElementById('preview-iframe');
     consolePanel = document.getElementById('console-panel');
     consoleOutput = document.getElementById('console-output');
@@ -21,44 +41,48 @@ const PreviewEngine = (() => {
 
     document.getElementById('btn-console-clear').addEventListener('click', clearConsole);
 
-    // Listen for console messages from iframe
     window.addEventListener('message', (e) => {
-      if (!previewIframe || e.source !== previewIframe.contentWindow) {
-        return;
-      }
-
-      if (e.data && e.data.type === 'console') {
-        appendConsole(e.data.level, e.data.args);
-      }
+      if (!previewIframe || e.source !== previewIframe.contentWindow) return;
+      if (e.data && e.data.type === 'console') appendConsole(e.data.level, e.data.args);
     });
   }
 
+  function sanitize(html) {
+    if (typeof DOMPurify === 'undefined') return html;
+    return DOMPurify.sanitize(html, PURIFY_CONFIG);
+  }
+
   /**
-   * Render content in the visualizer based on format
+   * Rendert Inhalte je nach Format. Für Markdown gibt es renderMarkdown() separat,
+   * da die App die Überschriften benötigt.
    */
   async function render(source, format, filePath) {
+    const id = format && format.id ? format.id : format;
     hideAll();
-
-    switch (format) {
+    switch (id) {
       case 'markdown':
-        await renderMarkdown(source);
-        break;
+        return renderMarkdown(source);
       case 'html':
         await renderHtml(source, filePath);
-        break;
+        return [];
       case 'css':
         renderCss(source);
-        break;
+        return [];
       case 'javascript':
       case 'typescript':
-        renderCodeOrExecute(source, format, filePath);
-        break;
+        showRunButton(true);
+        if (executionMode) {
+          await executeCode(source, id);
+        } else {
+          await renderCode(source, format && format.language ? format.language : id);
+        }
+        return [];
       case 'json':
-        renderJson(source);
-        break;
+        await renderJson(source, format);
+        return [];
       default:
-        renderPlainText(source);
-        break;
+        await renderCode(source, format && format.language ? format.language : 'plaintext');
+        return [];
     }
   }
 
@@ -71,113 +95,157 @@ const PreviewEngine = (() => {
   }
 
   function showRunButton(show) {
-    if (show) {
-      btnRunCode.classList.remove('hidden');
-    } else {
-      btnRunCode.classList.add('hidden');
-    }
+    btnRunCode.classList.toggle('hidden', !show);
   }
 
   /**
-   * Markdown: delegate to IPC → markdown-engine
+   * Markdown rendern. Liefert die Überschriften (für TOC) zurück.
    */
   async function renderMarkdown(source) {
-    markdownContainer.classList.remove('hidden');
-    previewIframe.classList.add('hidden');
-
-    const { html, headings } = await window.api.renderMarkdown(source);
-    markdownContainer.innerHTML = html;
-    return headings;
-  }
-
-  /**
-   * HTML: render in sandboxed iframe with resolved assets
-   */
-  async function renderHtml(source, filePath) {
-    markdownContainer.classList.add('hidden');
-    previewIframe.classList.remove('hidden');
-
-    let html = source;
-    if (filePath) {
-      html = await window.api.resolveHtmlAssets(source, filePath);
-    }
-
-    setPreviewContent(html);
-  }
-
-  /**
-   * CSS: show preview with sample elements + the CSS applied
-   */
-  function renderCss(source) {
-    markdownContainer.classList.add('hidden');
-    previewIframe.classList.remove('hidden');
-
-    const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><style>${escapeForHtml(source)}</style>
-<style>
-  body { font-family: 'Segoe UI', sans-serif; padding: 2rem; color: #333; background: #fff; }
-  .preview-section { margin-bottom: 2rem; }
-  .preview-section h3 { color: #666; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.3rem; }
-</style>
-</head>
-<body>
-  <div class="preview-section"><h3>Überschriften</h3><h1>Überschrift 1</h1><h2>Überschrift 2</h2><h3>Überschrift 3</h3></div>
-  <div class="preview-section"><h3>Text</h3><p>Dies ist ein <strong>fetter</strong> und <em>kursiver</em> Absatz mit einem <a href="#">Link</a>.</p></div>
-  <div class="preview-section"><h3>Liste</h3><ul><li>Element 1</li><li>Element 2</li><li>Element 3</li></ul></div>
-  <div class="preview-section"><h3>Buttons</h3><button>Standard</button> <button class="primary">Primär</button> <button disabled>Deaktiviert</button></div>
-  <div class="preview-section"><h3>Formular</h3><form><input type="text" placeholder="Texteingabe"><br><br><select><option>Option 1</option><option>Option 2</option></select><br><br><textarea placeholder="Textarea"></textarea></form></div>
-  <div class="preview-section"><h3>Tabelle</h3><table><thead><tr><th>Name</th><th>Wert</th></tr></thead><tbody><tr><td>Alpha</td><td>100</td></tr><tr><td>Beta</td><td>200</td></tr></tbody></table></div>
-</body>
-</html>`;
-
-    setPreviewContent(html);
-  }
-
-  /**
-   * JS/TS: show highlighted code OR execute in iframe
-   */
-  function renderCodeOrExecute(source, format, filePath) {
-    showRunButton(true);
-
-    if (executionMode) {
-      executeCode(source, format);
-    } else {
-      renderHighlighted(source, format);
-    }
-  }
-
-  /**
-   * Syntax-highlighted code display
-   */
-  function renderHighlighted(source, format) {
+    currentView = 'markdown';
     markdownContainer.classList.remove('hidden');
     previewIframe.classList.add('hidden');
     consolePanel.classList.add('hidden');
 
-    const lang = format === 'typescript' ? 'typescript' :
-                 format === 'javascript' ? 'javascript' :
-                 format === 'json' ? 'json' :
-                 format === 'css' ? 'css' :
-                 format === 'html' ? 'html' : 'plaintext';
+    const { html, headings } = await window.api.renderMarkdown(source);
+    article.classList.remove('is-code-view');
+    article.innerHTML = sanitize(html);
+    decorateCodeBlocks();
+    return headings;
+  }
 
-    markdownContainer.innerHTML = `<pre><code class="language-${lang}">${escapeHtml(source)}</code></pre>`;
+  function decorateCodeBlocks() {
+    article.querySelectorAll('pre.code-block, pre > code').forEach(node => {
+      const pre = node.tagName === 'PRE' ? node : node.parentElement;
+      if (!pre || pre.querySelector('.code-copy')) return;
+      if (pre.closest('.front-matter')) return;
+      const btn = document.createElement('button');
+      btn.className = 'code-copy';
+      btn.type = 'button';
+      btn.title = 'Code kopieren';
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Kopieren</span>';
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const code = pre.querySelector('code');
+        const text = code ? code.textContent : pre.textContent;
+        try {
+          await window.api.copyToClipboard(text.replace(/\n$/, ''));
+          btn.classList.add('copied');
+          btn.querySelector('span').textContent = 'Kopiert';
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.querySelector('span').textContent = 'Kopieren';
+          }, 1600);
+        } catch { /* ignore */ }
+      });
+      pre.appendChild(btn);
+    });
   }
 
   /**
-   * Execute JS/TS code in an iframe with console capture
+   * HTML in sandboxed iframe mit eingebetteten lokalen Assets
    */
-  async function executeCode(source, format) {
+  async function renderHtml(source, filePath) {
+    currentView = 'iframe';
+    markdownContainer.classList.add('hidden');
+    previewIframe.classList.remove('hidden');
+    let html = source;
+    if (filePath) {
+      try { html = await window.api.resolveHtmlAssets(source, filePath); } catch { html = source; }
+    }
+    setPreviewContent(html);
+  }
+
+  function renderCss(source) {
+    currentView = 'iframe';
+    markdownContainer.classList.add('hidden');
+    previewIframe.classList.remove('hidden');
+    const html = `<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8">
+<style>
+  body { font-family: 'Segoe UI', sans-serif; padding: 2rem; color: #333; background: #fff; }
+  .preview-section { margin-bottom: 2rem; }
+  .preview-section > h3.__label { color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.6rem; border-bottom: 1px solid #eee; padding-bottom: 0.3rem; font-weight: 600; }
+</style>
+<style id="user-css">${escapeForHtml(source)}</style>
+</head>
+<body>
+  <div class="preview-section"><h3 class="__label">Überschriften</h3><h1>Überschrift 1</h1><h2>Überschrift 2</h2><h3>Überschrift 3</h3></div>
+  <div class="preview-section"><h3 class="__label">Text</h3><p>Dies ist ein <strong>fetter</strong> und <em>kursiver</em> Absatz mit einem <a href="#">Link</a> und <code>Inline-Code</code>.</p><blockquote>Ein Zitat.</blockquote></div>
+  <div class="preview-section"><h3 class="__label">Listen</h3><ul><li>Element 1</li><li>Element 2</li></ul><ol><li>Erstens</li><li>Zweitens</li></ol></div>
+  <div class="preview-section"><h3 class="__label">Buttons</h3><button>Standard</button> <button class="primary btn btn-primary">Primär</button> <button class="secondary btn btn-secondary">Sekundär</button> <button disabled>Deaktiviert</button></div>
+  <div class="preview-section"><h3 class="__label">Formular</h3><form><label>Text <input type="text" placeholder="Texteingabe"></label><br><br><label>Auswahl <select><option>Option 1</option><option>Option 2</option></select></label><br><br><label><input type="checkbox" checked> Checkbox</label><br><br><textarea placeholder="Textarea"></textarea></form></div>
+  <div class="preview-section"><h3 class="__label">Tabelle</h3><table><thead><tr><th>Name</th><th>Wert</th></tr></thead><tbody><tr><td>Alpha</td><td>100</td></tr><tr><td>Beta</td><td>200</td></tr></tbody></table></div>
+  <div class="preview-section"><h3 class="__label">Karte / Container</h3><div class="card container"><h3>Card-Titel</h3><p>Inhalt einer Karte (<code>.card</code>, <code>.container</code>).</p></div></div>
+</body>
+</html>`;
+    setPreviewContent(html);
+  }
+
+  /**
+   * Code-Ansicht mit Zeilennummern und Highlighting
+   */
+  async function renderCode(source, language) {
+    currentView = 'code';
+    markdownContainer.classList.remove('hidden');
+    previewIframe.classList.add('hidden');
+    consolePanel.classList.add('hidden');
+
+    const text = String(source ?? '');
+    let html;
+    let lang = language || 'plaintext';
+    if (text.length <= HIGHLIGHT_MAX_CHARS) {
+      try {
+        const res = await window.api.highlightCode(text, lang);
+        html = res.html;
+        lang = res.language || lang;
+      } catch {
+        html = escapeHtml(text);
+      }
+    } else {
+      html = escapeHtml(text);
+    }
+    article.classList.add('is-code-view');
+    article.innerHTML = buildCodeView(html, text, lang, true);
+  }
+
+  function buildCodeView(highlightedHtml, text, lang, withGutter) {
+    const lineCount = text.length === 0 ? 1 : text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+    let gutter = '';
+    if (withGutter) {
+      const nums = [];
+      for (let i = 1; i <= Math.max(1, lineCount); i++) nums.push(i);
+      gutter = `<div class="code-view-gutter" aria-hidden="true">${nums.join('\n')}</div>`;
+    }
+    return `<div class="code-view" data-lang="${escapeHtml(lang)}">${gutter}<pre class="hljs"><code class="hljs language-${escapeHtml(lang)}">${highlightedHtml}</code></pre></div>`;
+  }
+
+  async function renderJson(source, format) {
+    let pretty = source;
+    try {
+      pretty = JSON.stringify(JSON.parse(source), null, 2);
+    } catch {
+      // JSONL / ungültiges JSON → Rohtext anzeigen
+    }
+    await renderCode(pretty, (format && format.language) || 'json');
+  }
+
+  /**
+   * JS/TS im iframe ausführen, Konsole abfangen
+   */
+  async function executeCode(source, formatId) {
+    currentView = 'iframe';
     markdownContainer.classList.add('hidden');
     previewIframe.classList.remove('hidden');
     consolePanel.classList.remove('hidden');
     clearConsole();
 
     let jsCode = source;
-    if (format === 'typescript') {
+    if (formatId === 'typescript') {
       const result = await window.api.transpileTs(source);
       if (result.error) {
-        appendConsole('error', [`TypeScript Fehler: ${result.error}`]);
+        appendConsole('error', [`TypeScript-Fehler: ${result.error}`]);
         return;
       }
       jsCode = result.code;
@@ -185,65 +253,71 @@ const PreviewEngine = (() => {
 
     const consoleScript = `
 <script>
-(function() {
-  const origConsole = window.console;
+(function () {
+  function fmt(a) {
+    try {
+      if (a instanceof Error) return (a.stack || (a.name + ': ' + a.message));
+      if (typeof a === 'string') return a;
+      if (typeof a === 'function') return a.toString();
+      if (a === undefined) return 'undefined';
+      if (a instanceof Element) return a.outerHTML.slice(0, 500);
+      if (typeof a === 'object' && a !== null) {
+        var seen = new WeakSet();
+        return JSON.stringify(a, function (k, v) {
+          if (typeof v === 'object' && v !== null) { if (seen.has(v)) return '[Circular]'; seen.add(v); }
+          if (typeof v === 'bigint') return v.toString() + 'n';
+          if (typeof v === 'function') return '[Function ' + (v.name || 'anonymous') + ']';
+          return v;
+        }, 2);
+      }
+      return String(a);
+    } catch (e) { return String(a); }
+  }
   function send(level, args) {
-    try {
-      parent.postMessage({ type: 'console', level: level, args: args.map(a => {
-        if (typeof a === 'object') return JSON.stringify(a, null, 2);
-        return String(a);
-      })}, '*');
-    } catch(e) {}
+    try { parent.postMessage({ type: 'console', level: level, args: Array.prototype.map.call(args, fmt) }, '*'); } catch (e) {}
   }
-  console.log = function() { send('log', Array.from(arguments)); };
-  console.warn = function() { send('warn', Array.from(arguments)); };
-  console.error = function() { send('error', Array.from(arguments)); };
-  console.info = function() { send('info', Array.from(arguments)); };
-  window.onerror = function(msg, src, line, col, err) {
-    send('error', ['Uncaught: ' + msg + ' (Zeile ' + line + ')']);
-  };
-  window.onunhandledrejection = function(e) {
-    send('error', ['Unhandled Promise: ' + (e.reason || e)]);
-  };
+  ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+    var orig = console[level];
+    console[level] = function () { send(level, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  console.table = function (d) { send('log', [d]); };
+  window.addEventListener('error', function (e) { send('error', ['Uncaught ' + (e.message || e) + (e.lineno ? ' (Zeile ' + e.lineno + ')' : '')]); });
+  window.addEventListener('unhandledrejection', function (e) { send('error', ['Unhandled Promise: ' + fmt(e.reason)]); });
 })();
-<\/script>`;
+</scr${''}ipt>`;
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${consoleScript}</head><body><script>${escapeForScript(jsCode)}<\/script></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">${consoleScript}<style>body{font-family:'Segoe UI',sans-serif;padding:1rem;color:#222}</style></head><body><script>${escapeForScript(jsCode)}</scr${''}ipt></body></html>`;
     setPreviewContent(html);
+    appendConsole('debug', ['Ausführung gestartet …']);
   }
 
-  /**
-   * JSON: pretty-printed + highlighted
-   */
-  function renderJson(source) {
-    markdownContainer.classList.remove('hidden');
-    previewIframe.classList.add('hidden');
+  // ---- Export ----
 
-    try {
-      const parsed = JSON.parse(source);
-      const pretty = JSON.stringify(parsed, null, 2);
-      markdownContainer.innerHTML = `<pre><code class="language-json">${escapeHtml(pretty)}</code></pre>`;
-    } catch {
-      markdownContainer.innerHTML = `<pre><code>${escapeHtml(source)}</code></pre>`;
+  /**
+   * Liefert das HTML für den Export (Artikel-Inhalt ohne interaktive Elemente).
+   * @param {{lineNumbers?: boolean}} opts
+   */
+  function getExportHtml(opts = {}) {
+    if (currentView === 'iframe') return null;
+    const clone = article.cloneNode(true);
+    clone.querySelectorAll('.code-copy').forEach(el => el.remove());
+    if (currentView === 'code' && opts.lineNumbers === false) {
+      clone.querySelectorAll('.code-view-gutter').forEach(el => el.remove());
     }
+    return clone.innerHTML;
   }
 
-  /**
-   * Plain text fallback
-   */
-  function renderPlainText(source) {
-    markdownContainer.classList.remove('hidden');
-    previewIframe.classList.add('hidden');
-    markdownContainer.innerHTML = `<pre><code>${escapeHtml(source)}</code></pre>`;
+  function isCodeView() {
+    return currentView === 'code';
   }
 
-  // ---- Console ----
+  // ---- Konsole ----
 
   function appendConsole(level, args) {
     if (!consoleOutput) return;
     const line = document.createElement('div');
     line.className = `console-line ${level}`;
-    line.textContent = args.join(' ');
+    line.textContent = (Array.isArray(args) ? args : [args]).join(' ');
     consoleOutput.appendChild(line);
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
   }
@@ -252,27 +326,22 @@ const PreviewEngine = (() => {
     if (consoleOutput) consoleOutput.innerHTML = '';
   }
 
-  // ---- Execution Mode Toggle ----
+  // ---- Ausführungsmodus ----
 
   function toggleExecution() {
     executionMode = !executionMode;
     return executionMode;
   }
+  function isExecutionMode() { return executionMode; }
+  function setExecutionMode(mode) { executionMode = Boolean(mode); }
 
-  function isExecutionMode() {
-    return executionMode;
-  }
-
-  function setExecutionMode(mode) {
-    executionMode = mode;
-  }
+  // ---- iframe ----
 
   function clearPreviewFrame() {
     if (activeObjectUrl) {
       URL.revokeObjectURL(activeObjectUrl);
       activeObjectUrl = null;
     }
-
     if (previewIframe) {
       previewIframe.onload = null;
       previewIframe.removeAttribute('src');
@@ -281,7 +350,6 @@ const PreviewEngine = (() => {
 
   function setPreviewContent(html) {
     clearPreviewFrame();
-
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     activeObjectUrl = url;
     previewIframe.src = url;
@@ -296,22 +364,18 @@ const PreviewEngine = (() => {
   // ---- Utilities ----
 
   function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-
   function escapeForHtml(str) {
-    // For CSS inside <style> — don't escape, but close-tag protection
-    return str.replace(/<\/style>/gi, '<\\/style>');
+    return String(str).replace(/<\/style/gi, '<\\/style');
   }
-
   function escapeForScript(str) {
-    return str.replace(/<\/script>/gi, '<\\/script>');
+    return String(str).replace(/<\/script/gi, '<\\/script');
   }
 
   return {
-    init, render, renderMarkdown, renderHtml, renderCss,
-    renderHighlighted, executeCode, renderJson, renderPlainText,
-    toggleExecution, isExecutionMode, setExecutionMode,
-    showRunButton, clearConsole
+    init, render, renderMarkdown, renderHtml, renderCss, renderCode, executeCode, renderJson,
+    toggleExecution, isExecutionMode, setExecutionMode, showRunButton, clearConsole,
+    getExportHtml, isCodeView, sanitize
   };
 })();

@@ -1,101 +1,85 @@
 /**
- * Scroll Spy - IntersectionObserver-based heading tracking
+ * Scroll Spy – ermittelt beim Scrollen die aktuell "aktive" Überschrift.
+ * Deterministisch über Positionen (statt IntersectionObserver mit Randbereichen):
+ * aktiv ist die letzte Überschrift, deren Oberkante die Lese-Linie passiert hat.
  */
 const ScrollSpy = (() => {
-  let observer = null;
+  let container = null;
   let onActiveChange = null;
-  let contentContainer = null;
-  let headingElements = [];
+  let headings = [];
+  let offsets = [];
+  let rafPending = false;
+  let lastActive = null;
+  let resizeObserver = null;
+  const READ_LINE = 80; // px unterhalb der Container-Oberkante
 
-  /**
-   * Initialize scroll spy
-   * @param {HTMLElement} container - The scrollable content container
-   * @param {Function} callback - Called with heading ID when active heading changes
-   */
-  function init(container, callback) {
-    contentContainer = container;
+  function init(scrollContainer, callback) {
+    container = scrollContainer;
     onActiveChange = callback;
+    container.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', () => { measure(); schedule(); });
   }
 
-  /**
-   * Start observing headings in the content
-   */
   function observe() {
-    // Cleanup previous observer
-    destroy();
-
-    if (!contentContainer) return;
-
-    headingElements = Array.from(
-      contentContainer.querySelectorAll('h1, h2, h3, h4, h5, h6')
-    ).filter(el => el.id);
-
-    if (headingElements.length === 0) return;
-
-    // Track which headings are currently intersecting
-    const visibleHeadings = new Set();
-
-    observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            visibleHeadings.add(entry.target.id);
-          } else {
-            visibleHeadings.delete(entry.target.id);
-          }
-        });
-
-        // Find the topmost visible heading
-        if (visibleHeadings.size > 0) {
-          // Get the heading that appears first in document order
-          for (const el of headingElements) {
-            if (visibleHeadings.has(el.id)) {
-              if (onActiveChange) onActiveChange(el.id);
-              return;
-            }
-          }
-        }
-
-        // If no headings are visible, find the one just scrolled past
-        if (visibleHeadings.size === 0) {
-          const scrollTop = contentContainer.scrollTop;
-          let lastAbove = null;
-
-          for (const el of headingElements) {
-            // offsetTop relative to content container
-            const top = el.offsetTop - contentContainer.offsetTop;
-            if (top <= scrollTop + 100) {
-              lastAbove = el;
-            } else {
-              break;
-            }
-          }
-
-          if (lastAbove && onActiveChange) {
-            onActiveChange(lastAbove.id);
-          }
-        }
-      },
-      {
-        root: contentContainer,
-        rootMargin: '-10% 0px -80% 0px',
-        threshold: 0
-      }
-    );
-
-    headingElements.forEach(el => observer.observe(el));
-  }
-
-  /**
-   * Stop observing
-   */
-  function destroy() {
-    if (observer) {
-      observer.disconnect();
-      observer = null;
+    destroy(false);
+    if (!container) return;
+    headings = Array.from(container.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]'));
+    measure();
+    if (typeof ResizeObserver === 'function') {
+      resizeObserver = new ResizeObserver(() => { measure(); schedule(); });
+      const article = container.firstElementChild;
+      if (article) resizeObserver.observe(article);
     }
-    headingElements = [];
+    lastActive = null;
+    schedule();
   }
 
-  return { init, observe, destroy };
+  function measure() {
+    if (!container) return;
+    const base = container.getBoundingClientRect().top - container.scrollTop;
+    offsets = headings.map(h => h.getBoundingClientRect().top - base);
+  }
+
+  function schedule() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      update();
+    });
+  }
+
+  function update() {
+    if (!container || headings.length === 0) return;
+    const line = container.scrollTop + READ_LINE;
+    const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 2;
+
+    let idx = -1;
+    // Binäre Suche: letzte Überschrift mit offset <= line
+    let lo = 0, hi = offsets.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (offsets[mid] <= line) { idx = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    if (atBottom) idx = offsets.length - 1;
+    if (idx === -1) idx = 0;
+
+    const active = headings[idx] ? headings[idx].id : null;
+    if (active !== lastActive) {
+      lastActive = active;
+      if (onActiveChange) onActiveChange(active);
+    }
+  }
+
+  function destroy(resetActive = true) {
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    headings = [];
+    offsets = [];
+    if (resetActive) lastActive = null;
+  }
+
+  return { init, observe, destroy, refresh: () => { measure(); schedule(); } };
 })();
