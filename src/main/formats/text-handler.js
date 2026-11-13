@@ -1,25 +1,23 @@
 /**
- * Text Format Handler - plain text fallback
+ * Text Format Handler – Fallback für reine Textdateien
  */
 const { registerFormat } = require('../format-registry');
+const { collectGenericIssues } = require('./code-formatter');
 
 registerFormat({
   id: 'text',
-  extensions: ['.txt', '.log', '.cfg', '.ini', '.env'],
+  kind: 'text',
   label: 'Text',
-  detect: () => true, // Fallback
+  extensions: ['.txt', '.log', '.cfg', '.ini', '.env', '.csv', '.tsv', '.gitignore', '.editorconfig', '.lock', '.license'],
+  language: 'plaintext',
+  detect: () => true,
   format: (source) => {
-    let formatted = source;
-    // Normalize line endings
-    formatted = formatted.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    // Remove trailing whitespace
+    const issues = [];
+    let formatted = String(source ?? '').replace(/\r\n?/g, '\n');
+    collectGenericIssues(formatted, issues);
     formatted = formatted.replace(/[ \t]+$/gm, '');
-    // Collapse 3+ blank lines to 2
     formatted = formatted.replace(/\n{3,}/g, '\n\n');
-    // Ensure trailing newline
-    if (formatted.length > 0 && !formatted.endsWith('\n')) {
-      formatted += '\n';
-    }
-    return { formatted, issues: [] };
+    if (formatted.length > 0 && !formatted.endsWith('\n')) formatted += '\n';
+    return { formatted, issues };
   }
 });

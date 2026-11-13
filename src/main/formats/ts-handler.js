@@ -1,42 +1,23 @@
 /**
- * TypeScript Format Handler - format via js-beautify, transpile via sucrase
+ * TypeScript Format Handler – Formatierung via Prettier, Transpilation via Sucrase
  */
 const { registerFormat } = require('../format-registry');
-const { js_beautify } = require('js-beautify');
+const { formatCode } = require('./code-formatter');
 const { transform } = require('sucrase');
 
 registerFormat({
   id: 'typescript',
-  extensions: ['.ts', '.tsx'],
+  kind: 'script',
   label: 'TypeScript',
-  detect: (filePath, content) => {
-    return /\b(interface|type\s+\w+\s*=|enum\s+|:\s*(string|number|boolean|any|void))\b/.test(content);
-  },
-  format: (source) => {
-    const formatted = js_beautify(source, {
-      indent_size: 2,
-      indent_char: ' ',
-      end_with_newline: true,
-      preserve_newlines: true,
-      max_preserve_newlines: 2,
-      brace_style: 'collapse',
-      space_before_conditional: true
-    });
-
-    const issues = [];
-    const lines = source.split('\n');
-    lines.forEach((line, i) => {
-      if (/\t/.test(line)) {
-        issues.push({ line: i + 1, message: 'Tab-Einrückung (Spaces empfohlen)', severity: 'info' });
-      }
-    });
-
-    return { formatted, issues };
-  },
+  extensions: ['.ts', '.tsx', '.mts', '.cts'],
+  language: 'typescript',
+  detect: (_filePath, content) => /\b(interface\s+\w+|type\s+\w+\s*=|enum\s+\w+|:\s*(string|number|boolean|any|void|unknown)\b)/.test(content),
+  format: (source, filePath) => formatCode(source, filePath || '.ts', { fallback: 'script' }),
   transpile: (source) => {
     try {
       const result = transform(source, {
-        transforms: ['typescript'],
+        transforms: ['typescript', 'jsx'],
+        jsxRuntime: 'classic',
         disableESTransforms: true
       });
       return { code: result.code, error: null };

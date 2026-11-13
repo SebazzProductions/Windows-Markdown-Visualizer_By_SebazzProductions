@@ -1,68 +1,86 @@
 /**
- * Format Registry - Central format handler management
- * Modular architecture: new formats = new handler + registerFormat() call
+ * Format Registry – zentrale Verwaltung der Format-Handler.
+ * Neues Format = neuer Handler + registerFormat()-Aufruf.
+ *
+ * Handler-Schema:
+ *   id          eindeutige Kennung (z. B. 'markdown')
+ *   label       Anzeigename
+ *   extensions  ['.md', ...] (mit Punkt, Kleinschreibung)
+ *   language    highlight.js-Sprache für die Code-Ansicht (optional)
+ *   detect      (filePath, content) => boolean – Inhalts-Heuristik für unbekannte Endungen
+ *   format      async (source, filePath) => { formatted, issues } (optional)
+ *   transpile   (source) => { code, error } (optional, TypeScript)
+ *   kind        'markdown' | 'html' | 'css' | 'script' | 'json' | 'code' | 'text'
  */
 const path = require('path');
 
 const handlers = [];
 
-/**
- * Register a format handler
- * @param {Object} handler - { id, extensions, label, detect, format, highlight }
- */
 function registerFormat(handler) {
-  if (!handler.id || !handler.extensions || !handler.label) {
-    throw new Error(`Invalid format handler: missing id, extensions, or label`);
+  if (!handler.id || !Array.isArray(handler.extensions) || !handler.label) {
+    throw new Error('Ungültiger Format-Handler: id, extensions oder label fehlen');
+  }
+  if (handlers.some(h => h.id === handler.id)) {
+    throw new Error(`Format-Handler "${handler.id}" ist bereits registriert`);
   }
   handlers.push(handler);
 }
 
+function extensionOf(filePath) {
+  if (!filePath) return '';
+  if (filePath.startsWith('.') && !filePath.includes(path.sep) && !filePath.includes('/')) {
+    return filePath.toLowerCase();
+  }
+  return path.extname(filePath).toLowerCase();
+}
+
 /**
- * Find handler by file path (extension match) with optional content fallback
+ * Handler per Endung ermitteln, Fallback über Inhaltsheuristik, zuletzt Text.
  */
 function getHandler(filePath, content) {
-  if (!filePath) return null;
-  const ext = filePath.startsWith('.')
-    ? filePath.toLowerCase()
-    : path.extname(filePath).toLowerCase();
-
-  // Primary: match by extension
-  const byExt = handlers.find(h => h.extensions.includes(ext));
-  if (byExt) return byExt;
-
-  // Fallback: content heuristic
-  if (content) {
-    const byContent = handlers.find(h => h.detect && h.detect(filePath, content));
+  const baseName = filePath ? String(filePath).split(/[\\/]/).pop().toLowerCase() : '';
+  if (baseName) {
+    const byName = handlers.find(h => Array.isArray(h.filenames) && h.filenames.includes(baseName));
+    if (byName) return byName;
+  }
+  const ext = extensionOf(filePath);
+  if (ext) {
+    const byExt = handlers.find(h => h.extensions.includes(ext));
+    if (byExt) return byExt;
+  }
+  if (typeof content === 'string' && content.length > 0) {
+    const sample = content.slice(0, 4000);
+    const byContent = handlers.find(h => h.id !== 'text' && typeof h.detect === 'function' && h.detect(filePath, sample));
     if (byContent) return byContent;
   }
-
-  return null;
+  return handlers.find(h => h.id === 'text') || null;
 }
 
 /**
- * Get all registered format handlers
+ * highlight.js-Sprache für eine Datei (Handler-Standard oder dateispezifisch).
  */
+function getLanguageFor(filePath, content) {
+  const handler = getHandler(filePath, content);
+  if (!handler) return 'plaintext';
+  if (typeof handler.languageFor === 'function') return handler.languageFor(filePath) || 'plaintext';
+  return handler.language || 'plaintext';
+}
+
 function getAllFormats() {
-  return handlers.map(h => ({ id: h.id, label: h.label, extensions: h.extensions }));
+  return handlers.map(h => ({ id: h.id, label: h.label, extensions: [...h.extensions], kind: h.kind || 'code' }));
 }
 
-/**
- * Get flat array of all supported extensions
- */
 function getSupportedExtensions() {
   return handlers.flatMap(h => h.extensions);
 }
 
-/**
- * Get dialog filters for file-open dialog
- */
 function getDialogFilters() {
-  const filters = handlers.map(h => ({
-    name: h.label,
-    extensions: h.extensions.map(e => e.slice(1)) // remove leading dot
-  }));
+  const filters = handlers
+    .filter(h => h.extensions.length > 0)
+    .map(h => ({ name: h.label, extensions: h.extensions.map(e => e.slice(1)) }));
+  filters.unshift({ name: 'Alle unterstützten Dateien', extensions: getSupportedExtensions().map(e => e.slice(1)) });
   filters.push({ name: 'Alle Dateien', extensions: ['*'] });
   return filters;
 }
 
-module.exports = { registerFormat, getHandler, getAllFormats, getSupportedExtensions, getDialogFilters };
+module.exports = { registerFormat, getHandler, getLanguageFor, getAllFormats, getSupportedExtensions, getDialogFilters, extensionOf };

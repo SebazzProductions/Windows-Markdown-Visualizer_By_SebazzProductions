@@ -1,51 +1,83 @@
 /**
- * JSON / JSONL Format Handler
+ * JSON / JSONC / JSONL Format Handler
  */
 const { registerFormat } = require('../format-registry');
+const { formatCode, collectGenericIssues } = require('./code-formatter');
+
+function jsonErrorLine(source, err) {
+  const pos = /position (\d+)/.exec(err.message);
+  if (!pos) return 1;
+  return source.slice(0, Number(pos[1])).split('\n').length;
+}
+
+function formatJsonLines(source) {
+  const issues = [];
+  const lines = source.replace(/\r\n?/g, '\n').split('\n');
+  const out = lines.map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    try {
+      return JSON.stringify(JSON.parse(trimmed));
+    } catch (err) {
+      issues.push({ line: i + 1, message: `Ungültiges JSON: ${err.message}`, severity: 'error' });
+      return trimmed;
+    }
+  });
+  let formatted = out.join('\n');
+  if (formatted.length > 0 && !formatted.endsWith('\n')) formatted += '\n';
+  return { formatted, issues };
+}
 
 registerFormat({
   id: 'json',
-  extensions: ['.json', '.jsonl'],
+  kind: 'json',
   label: 'JSON',
-  detect: (filePath, content) => {
+  extensions: ['.json', '.jsonc', '.json5', '.jsonl', '.webmanifest'],
+  language: 'json',
+  detect: (_filePath, content) => {
     const trimmed = content.trim();
-    return trimmed.startsWith('{') || trimmed.startsWith('[');
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return false;
+    try { JSON.parse(trimmed); return true; } catch { return false; }
   },
-  format: (source) => {
-    const ext = ''; // extension is checked in the handler call
-    const issues = [];
+  format: async (source, filePath) => {
+    const ext = (filePath || '').toLowerCase();
+    if (ext.endsWith('.jsonl')) {
+      return formatJsonLines(source);
+    }
+    // Erkennung: mehrere Zeilen, jede ein JSON-Objekt → JSON Lines
+    const nonEmpty = source.split(/\r?\n/).filter(l => l.trim());
+    if (nonEmpty.length > 1 && nonEmpty.every(l => /^\s*[{[]/.test(l) && /[}\]]\s*,?\s*$/.test(l))) {
+      let valid = 0;
+      for (const l of nonEmpty) { try { JSON.parse(l); valid++; } catch { /* kein JSONL */ } }
+      if (valid === nonEmpty.length) return formatJsonLines(source);
+    }
 
-    // Check if JSONL (one JSON object per line)
-    const lines = source.split('\n').filter(l => l.trim());
-    const isJsonl = lines.length > 1 && lines.every(l => {
-      const t = l.trim();
-      return t.startsWith('{') || t.startsWith('[') || t === '';
-    });
-
-    if (isJsonl) {
-      const formattedLines = [];
-      lines.forEach((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) { formattedLines.push(''); return; }
-        try {
-          const parsed = JSON.parse(trimmed);
-          formattedLines.push(JSON.stringify(parsed));
-        } catch (err) {
-          issues.push({ line: i + 1, message: `Ungültiges JSON: ${err.message}`, severity: 'error' });
-          formattedLines.push(trimmed);
+    const result = await formatCode(source, filePath || '.json', { parser: ext.endsWith('.json5') ? 'json5' : 'json' });
+    const strict = ext.endsWith('.json') || ext.endsWith('.webmanifest');
+    if (strict && !result.issues.some(i => i.severity === 'error')) {
+      // Prettier ist tolerant (Kommentare, abschließende Kommas) – striktes JSON zusätzlich prüfen
+      try {
+        JSON.parse(source);
+      } catch (err) {
+        result.issues.unshift({ line: jsonErrorLine(source, err), message: `Kein striktes JSON: ${err.message}`, severity: 'warning' });
+      }
+    }
+    if (result.issues.some(i => i.severity === 'error')) {
+      // Prettier scheiterte → genaue Fehlerposition via JSON.parse versuchen
+      try {
+        JSON.parse(source);
+      } catch (err) {
+        const pos = /position (\d+)/.exec(err.message);
+        if (pos) {
+          const upTo = source.slice(0, Number(pos[1]));
+          const line = upTo.split('\n').length;
+          const issues = result.issues.filter(i => i.severity !== 'error');
+          issues.unshift({ line, message: `JSON-Fehler: ${err.message}`, severity: 'error' });
+          collectGenericIssues(source, []);
+          return { formatted: source, issues };
         }
-      });
-      return { formatted: formattedLines.join('\n') + '\n', issues };
+      }
     }
-
-    // Regular JSON
-    try {
-      const parsed = JSON.parse(source);
-      const formatted = JSON.stringify(parsed, null, 2) + '\n';
-      return { formatted, issues };
-    } catch (err) {
-      issues.push({ line: 1, message: `JSON Parse-Fehler: ${err.message}`, severity: 'error' });
-      return { formatted: source, issues };
-    }
+    return result;
   }
 });
