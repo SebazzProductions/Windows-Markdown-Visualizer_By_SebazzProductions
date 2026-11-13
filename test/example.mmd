@@ -1,0 +1,13 @@
+%% Beispiel-Diagramm für den Mermaid & Markdown Visualizer
+flowchart LR
+  subgraph Eingabe
+    A[Datei öffnen] --> B{Format?}
+  end
+  B -- Markdown --> C[Rendern + TOC]
+  B -- Mermaid --> D[Diagramm zeichnen]
+  B -- Code --> E[Highlighting]
+  C --> F[Vorschau]
+  D --> F
+  E --> F
+  F --> G((PDF / HTML / SVG))
+  style G fill:#4f6ef7,stroke:#3d5bd9,color:#fff

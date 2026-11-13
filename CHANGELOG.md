@@ -2,6 +2,32 @@
 
 Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
+## [2.1.0] – 2026-11-13
+
+Umbenennung in **Mermaid & Markdown Visualizer**.
+
+### Neue Funktionen
+
+- **Mermaid-Diagramme:** `.mmd`/`.mermaid`-Dateien werden als Diagramm dargestellt – mit Zoom (Mausrad, Tasten, Toolbar), Verschieben per Ziehen, Einpassen (Doppelklick), Vorlagen für zehn Diagrammtypen, Live-Vorschau neben dem Editor und Fehlermeldung mit Zeilenangabe (das letzte gültige Diagramm bleibt sichtbar). Fix Syntax prüft die Mermaid-Syntax.
+- **Mermaid in Markdown:** ```` ```mermaid ````-Blöcke werden im Visualizer, im HTML- und im PDF-Export gerendert; fehlerhafte Blöcke zeigen Code und Fehlermeldung.
+- **Neues Diagramm** (`Strg+Shift+N`, Startbildschirm, Menü) startet mit einer Vorlage und eingeschalteter Live-Vorschau.
+- **SVG-Export** für Diagramme (Export-Dialog und Menü), SVG kopieren in der Diagramm-Toolbar und an Diagrammen im Markdown.
+- **Speichern-Button** in der Titelleiste (Editor/Fix Syntax) und in der Fix-Syntax-Leiste – ausgegraut, bis es Änderungen gibt; kurze Bestätigung nach dem Speichern.
+- **Inhaltsverzeichnis im Editor:** Klick springt zur Quellzeile, der Eintrag der Cursorposition ist hervorgehoben, die Überschriften aktualisieren sich beim Tippen auch ohne Vorschau.
+- **In-App-Dialoge:** „Sie haben Änderungen vorgenommen. Möchten Sie diese speichern?“ beim Schließen, Öffnen und Neuanlegen sowie bei extern geänderten Dateien – im Design der Anwendung statt nativer Nachrichtenboxen.
+- **Deutsch / Englisch:** Umschalter DE | EN in der Titelleiste und im Menü (Ansicht → Sprache), Standard ist die Systemsprache. Umfasst Oberfläche, Menü, Kontextmenü, Dialoge, Statusleiste, Vorlagen und Exporte.
+- **Dateizuordnung:** `.mmd` und `.mermaid` werden bei der Installation registriert („Öffnen mit“).
+
+### Behobene Fehler
+
+- Ein Klick während eines längeren Renderings (z. B. erstes Laden) schaltete den Modus wieder zurück.
+
+### Technik
+
+- Mermaid 11 als vorgefertigtes Bundle in `src/renderer/vendor` (Dev-Dependency, `npm run vendor` zum Aktualisieren) – SVG-Ausgabe wird mit DOMPurify bereinigt, Labels als SVG-Text (keine foreignObjects), dadurch saubere PDF-/SVG-Exporte.
+- Übersetzungen zentral in `src/shared/locales.js` (Main + Renderer).
+- 28 E2E-Tests (8 neue).
+
 ## [2.0.0] – 2026-11-13
 
 ### Behobene Fehler
