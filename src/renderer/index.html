@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self'; frame-src 'self' blob: data:; connect-src 'none'; object-src 'none';">
-  <title>Markdown Visualizer</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' data:; frame-src 'self' blob: data:; connect-src 'none'; object-src 'none';">
+  <title>Mermaid &amp; Markdown Visualizer</title>
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/toc.css">
@@ -25,7 +25,9 @@
       <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
       <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
       <symbol id="i-file-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></symbol>
+      <symbol id="i-diagram" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6h4"/><path d="M6.5 9v6a3 3 0 0 0 3 3H14"/></symbol>
       <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></symbol>
       <symbol id="i-chevron-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></symbol>
@@ -49,41 +51,57 @@
       <symbol id="i-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></symbol>
       <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
       <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      <symbol id="i-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></symbol>
+      <symbol id="i-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></symbol>
+      <symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></symbol>
     </defs>
   </svg>
 
   <!-- Welcome Screen -->
   <div id="welcome-screen" class="welcome-screen">
     <div class="welcome-titlebar">
-      <button id="btn-welcome-menu" class="btn-icon" title="Menü (Alt)" aria-label="Menü">
+      <button id="btn-welcome-menu" class="btn-icon" data-i18n-title="menu.button" data-i18n-aria="menu.aria" title="Menü (Alt)" aria-label="Menü">
         <svg width="18" height="18"><use href="#i-menu"/></svg>
       </button>
+      <span class="spacer"></span>
+      <div class="lang-toggle" role="group" data-i18n-aria="lang.toggle" aria-label="Sprache wechseln / Switch language">
+        <button type="button" data-lang="de" lang="de" aria-pressed="false">DE</button>
+        <span class="lang-sep" aria-hidden="true">|</span>
+        <button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button>
+      </div>
     </div>
     <div class="welcome-scroll">
       <div class="welcome-content">
         <div class="welcome-icon">
           <svg width="72" height="72" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="4" y="12" width="72" height="56" rx="6" stroke="currentColor" stroke-width="3" fill="none"/>
-            <path d="M18 48V32l8 10 8-10v16" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M50 40l8 8 8-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="58" y1="32" x2="58" y2="48" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <path d="M16 50V30l8 10 8-10v20" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="44" y="26" width="10" height="8" rx="2" stroke="currentColor" stroke-width="2.5"/>
+            <rect x="58" y="46" width="10" height="8" rx="2" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M49 34v8a4 4 0 0 0 4 4h5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
           </svg>
         </div>
-        <h1 class="welcome-title">Markdown Visualizer</h1>
-        <p class="welcome-subtitle">Markdown und Code ansehen, bearbeiten und als PDF exportieren</p>
+        <h1 class="welcome-title" data-i18n="app.name">Mermaid &amp; Markdown Visualizer</h1>
+        <p class="welcome-subtitle" data-i18n="app.tagline">Markdown, Mermaid-Diagramme und Code ansehen, bearbeiten und als PDF exportieren</p>
         <div class="welcome-actions">
           <button id="btn-open-file" class="btn btn-primary">
             <svg width="18" height="18"><use href="#i-folder"/></svg>
-            Datei öffnen
+            <span data-i18n="welcome.open">Datei öffnen</span>
           </button>
           <button id="btn-new-file" class="btn btn-secondary">
             <svg width="18" height="18"><use href="#i-file-plus"/></svg>
-            Neues Dokument
+            <span data-i18n="welcome.new">Neues Dokument</span>
+          </button>
+          <button id="btn-new-diagram" class="btn btn-secondary">
+            <svg width="18" height="18"><use href="#i-diagram"/></svg>
+            <span data-i18n="welcome.newDiagram">Neues Diagramm</span>
           </button>
         </div>
-        <p class="welcome-hint">oder eine Datei per Drag &amp; Drop hierher ziehen</p>
+        <p class="welcome-hint" data-i18n="welcome.dropHint">oder eine Datei per Drag &amp; Drop hierher ziehen</p>
         <div class="welcome-formats">
           <span class="format-badge">.md</span>
+          <span class="format-badge">.mmd</span>
           <span class="format-badge">.html</span>
           <span class="format-badge">.css</span>
           <span class="format-badge">.js</span>
@@ -91,21 +109,20 @@
           <span class="format-badge">.json</span>
           <span class="format-badge">.yaml</span>
           <span class="format-badge">.py</span>
-          <span class="format-badge">.txt</span>
           <span class="format-badge">…</span>
         </div>
-        <section id="recent-files" class="recent-files hidden" aria-label="Zuletzt geöffnet">
+        <section id="recent-files" class="recent-files hidden" data-i18n-aria="welcome.recent" aria-label="Zuletzt geöffnet">
           <div class="recent-files-header">
-            <h2>Zuletzt geöffnet</h2>
-            <button id="btn-clear-recent" class="btn-link">Liste leeren</button>
+            <h2 data-i18n="welcome.recent">Zuletzt geöffnet</h2>
+            <button id="btn-clear-recent" class="btn-link" data-i18n="welcome.clearRecent">Liste leeren</button>
           </div>
           <ul id="recent-list" class="recent-list"></ul>
         </section>
         <div class="welcome-shortcuts">
-          <div class="shortcut"><kbd>Strg</kbd>+<kbd>O</kbd> Öffnen</div>
-          <div class="shortcut"><kbd>Strg</kbd>+<kbd>N</kbd> Neu</div>
-          <div class="shortcut"><kbd>Strg</kbd>+<kbd>T</kbd> Design</div>
-          <div class="shortcut"><kbd>F1</kbd> Alle Tastenkürzel</div>
+          <div class="shortcut"><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>O</kbd> <span data-i18n="welcome.shortcutOpen">Öffnen</span></div>
+          <div class="shortcut"><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>N</kbd> <span data-i18n="welcome.shortcutNew">Neu</span></div>
+          <div class="shortcut"><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>N</kbd> <span data-i18n="welcome.shortcutDiagram">Diagramm</span></div>
+          <div class="shortcut"><kbd>F1</kbd> <span data-i18n="welcome.shortcutHelp">Alle Tastenkürzel</span></div>
         </div>
       </div>
     </div>
@@ -116,22 +133,22 @@
     <!-- TOC Sidebar -->
     <aside id="toc-sidebar" class="toc-sidebar">
       <div class="toc-header">
-        <h2 class="toc-title">Inhalt</h2>
+        <h2 class="toc-title" data-i18n="toc.title">Inhalt</h2>
         <div class="toc-header-actions">
-          <button id="btn-toc-expand-all" class="btn-icon-sm" title="Alle ausklappen"><svg width="14" height="14"><use href="#i-expand-all"/></svg></button>
-          <button id="btn-toc-collapse-all" class="btn-icon-sm" title="Alle einklappen"><svg width="14" height="14"><use href="#i-collapse-all"/></svg></button>
-          <button id="btn-collapse-toc" class="btn-icon-sm" title="Inhaltsverzeichnis ausblenden (Strg+B)"><svg width="16" height="16"><use href="#i-chevron-left"/></svg></button>
+          <button id="btn-toc-expand-all" class="btn-icon-sm" data-i18n-title="toc.expandAll" title="Alle ausklappen"><svg width="14" height="14"><use href="#i-expand-all"/></svg></button>
+          <button id="btn-toc-collapse-all" class="btn-icon-sm" data-i18n-title="toc.collapseAll" title="Alle einklappen"><svg width="14" height="14"><use href="#i-collapse-all"/></svg></button>
+          <button id="btn-collapse-toc" class="btn-icon-sm" data-i18n-title="toc.hide" title="Inhaltsverzeichnis ausblenden (Strg+B)"><svg width="16" height="16"><use href="#i-chevron-left"/></svg></button>
         </div>
       </div>
       <div class="toc-filter">
-        <input id="toc-filter" class="toc-filter-input" type="search" placeholder="Überschriften filtern…" aria-label="Überschriften filtern" spellcheck="false">
+        <input id="toc-filter" class="toc-filter-input" type="search" data-i18n-placeholder="toc.filter" data-i18n-aria="toc.filter" placeholder="Überschriften filtern…" aria-label="Überschriften filtern…" spellcheck="false">
       </div>
-      <nav id="toc-content" class="toc-nav" aria-label="Inhaltsverzeichnis"></nav>
-      <div id="toc-resize-handle" class="toc-resize-handle" title="Breite ändern"></div>
+      <nav id="toc-content" class="toc-nav" data-i18n-aria="toc.aria" aria-label="Inhaltsverzeichnis"></nav>
+      <div id="toc-resize-handle" class="toc-resize-handle" data-i18n-title="toc.resize" title="Breite ändern"></div>
     </aside>
 
     <!-- TOC Toggle (when collapsed) -->
-    <button id="btn-expand-toc" class="btn-expand-toc hidden" title="Inhaltsverzeichnis anzeigen (Strg+B)">
+    <button id="btn-expand-toc" class="btn-expand-toc hidden" data-i18n-title="toc.show" title="Inhaltsverzeichnis anzeigen (Strg+B)">
       <svg width="18" height="18"><use href="#i-menu"/></svg>
     </button>
 
@@ -140,60 +157,69 @@
       <!-- Toolbar / Titelleiste -->
       <div class="toolbar">
         <div class="toolbar-left">
-          <button id="btn-app-menu" class="btn-icon" title="Menü (Alt)" aria-label="Menü"><svg width="18" height="18"><use href="#i-menu"/></svg></button>
+          <button id="btn-app-menu" class="btn-icon" data-i18n-title="menu.button" data-i18n-aria="menu.aria" title="Menü (Alt)" aria-label="Menü"><svg width="18" height="18"><use href="#i-menu"/></svg></button>
           <span id="file-name" class="file-name" title=""></span>
           <span id="format-badge" class="format-badge-small hidden"></span>
-          <span id="dirty-indicator" class="dirty-indicator hidden" title="Ungespeicherte Änderungen">●</span>
+          <span id="dirty-indicator" class="dirty-indicator hidden" data-i18n-title="toolbar.unsaved" title="Ungespeicherte Änderungen">●</span>
+          <button id="btn-save" class="btn btn-primary btn-sm btn-save hidden" disabled title="Speichern (Strg+S)">
+            <svg width="14" height="14"><use href="#i-save"/></svg>
+            <span data-i18n="toolbar.save">Speichern</span>
+          </button>
         </div>
         <div class="toolbar-center">
           <div class="tab-group" role="tablist">
-            <button class="tab-btn active" data-mode="visualizer" role="tab" title="Visualizer (Strg+1)">
-              <svg width="16" height="16"><use href="#i-eye"/></svg><span class="tab-label">Visualizer</span>
+            <button class="tab-btn active" data-mode="visualizer" role="tab" data-i18n-title="tabs.visualizerTitle" title="Visualizer (Strg+1)">
+              <svg width="16" height="16"><use href="#i-eye"/></svg><span class="tab-label" data-i18n="tabs.visualizer">Visualizer</span>
             </button>
-            <button class="tab-btn" data-mode="editor" role="tab" title="Editor (Strg+2 / Strg+E)">
-              <svg width="16" height="16"><use href="#i-edit"/></svg><span class="tab-label">Editor</span>
+            <button class="tab-btn" data-mode="editor" role="tab" data-i18n-title="tabs.editorTitle" title="Editor (Strg+2 / Strg+E)">
+              <svg width="16" height="16"><use href="#i-edit"/></svg><span class="tab-label" data-i18n="tabs.editor">Editor</span>
             </button>
-            <button class="tab-btn" data-mode="fix-syntax" role="tab" title="Fix Syntax (Strg+3 / Strg+Shift+F)">
-              <svg width="16" height="16"><use href="#i-tool"/></svg><span class="tab-label">Fix Syntax</span>
+            <button class="tab-btn" data-mode="fix-syntax" role="tab" data-i18n-title="tabs.fixTitle" title="Fix Syntax (Strg+3 / Strg+Shift+F)">
+              <svg width="16" height="16"><use href="#i-tool"/></svg><span class="tab-label" data-i18n="tabs.fix">Fix Syntax</span>
             </button>
           </div>
         </div>
         <div class="toolbar-right">
-          <button id="zoom-badge" class="zoom-badge hidden" title="Zoom zurücksetzen (Strg+0)">100 %</button>
-          <button id="btn-split" class="btn-icon hidden" title="Live-Vorschau neben dem Editor (Strg+\)"><svg width="18" height="18"><use href="#i-split"/></svg></button>
+          <button id="zoom-badge" class="zoom-badge hidden" data-i18n-title="toolbar.zoomReset" title="Zoom zurücksetzen (Strg+0)">100 %</button>
+          <button id="btn-split" class="btn-icon hidden" data-i18n-title="toolbar.split" title="Live-Vorschau neben dem Editor (Strg+\)"><svg width="18" height="18"><use href="#i-split"/></svg></button>
           <button id="btn-run-code" class="btn-icon hidden" title="Code ausführen (Strg+R)"><svg width="18" height="18"><use href="#i-play"/></svg></button>
-          <button id="btn-find" class="btn-icon" title="Suchen (Strg+F)"><svg width="18" height="18"><use href="#i-search"/></svg></button>
-          <button id="btn-theme-toggle" class="btn-icon" title="Hell/Dunkel wechseln (Strg+T)">
+          <button id="btn-find" class="btn-icon" data-i18n-title="toolbar.find" title="Suchen (Strg+F)"><svg width="18" height="18"><use href="#i-search"/></svg></button>
+          <button id="btn-theme-toggle" class="btn-icon" data-i18n-title="toolbar.theme" title="Hell/Dunkel wechseln (Strg+T)">
             <svg class="icon-sun" width="18" height="18"><use href="#i-sun"/></svg>
             <svg class="icon-moon" width="18" height="18"><use href="#i-moon"/></svg>
           </button>
-          <button id="btn-export-pdf" class="btn-icon" title="Exportieren (Strg+Shift+E)"><svg width="18" height="18"><use href="#i-export"/></svg></button>
-          <button id="btn-help" class="btn-icon" title="Tastenkürzel (F1)"><svg width="18" height="18"><use href="#i-help"/></svg></button>
+          <button id="btn-export-pdf" class="btn-icon" data-i18n-title="toolbar.export" title="Exportieren (Strg+Shift+E)"><svg width="18" height="18"><use href="#i-export"/></svg></button>
+          <button id="btn-help" class="btn-icon" data-i18n-title="toolbar.help" title="Tastenkürzel (F1)"><svg width="18" height="18"><use href="#i-help"/></svg></button>
+          <div class="lang-toggle" role="group" data-i18n-aria="lang.toggle" aria-label="Sprache wechseln / Switch language">
+            <button type="button" data-lang="de" lang="de" aria-pressed="false">DE</button>
+            <span class="lang-sep" aria-hidden="true">|</span>
+            <button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button>
+          </div>
         </div>
       </div>
 
       <!-- Suchleiste -->
       <div id="find-bar" class="find-bar hidden" role="search">
         <div class="find-row">
-          <span class="find-label">Suchen</span>
+          <span class="find-label" data-i18n="find.label">Suchen</span>
           <div class="find-input-wrap">
-            <input id="find-input" class="find-input" type="text" placeholder="Suchbegriff" spellcheck="false" autocomplete="off">
+            <input id="find-input" class="find-input" type="text" data-i18n-placeholder="find.placeholder" placeholder="Suchbegriff" spellcheck="false" autocomplete="off">
             <span id="find-count" class="find-count"></span>
           </div>
-          <button id="btn-find-prev" class="btn-icon-sm" title="Vorheriger Treffer (Shift+Enter)"><svg width="14" height="14"><use href="#i-chevron-up"/></svg></button>
-          <button id="btn-find-next" class="btn-icon-sm" title="Nächster Treffer (Enter)"><svg width="14" height="14"><use href="#i-chevron-down"/></svg></button>
-          <button id="btn-find-case" class="btn-icon-sm" title="Groß-/Kleinschreibung beachten" aria-pressed="false"><svg width="14" height="14"><use href="#i-case"/></svg></button>
+          <button id="btn-find-prev" class="btn-icon-sm" data-i18n-title="find.prev" title="Vorheriger Treffer (Shift+Enter)"><svg width="14" height="14"><use href="#i-chevron-up"/></svg></button>
+          <button id="btn-find-next" class="btn-icon-sm" data-i18n-title="find.next" title="Nächster Treffer (Enter)"><svg width="14" height="14"><use href="#i-chevron-down"/></svg></button>
+          <button id="btn-find-case" class="btn-icon-sm" data-i18n-title="find.case" title="Groß-/Kleinschreibung beachten" aria-pressed="false"><svg width="14" height="14"><use href="#i-case"/></svg></button>
           <span id="find-hint" class="find-hint"></span>
           <span class="spacer"></span>
-          <button id="btn-find-close" class="btn-icon-sm" title="Schließen (Esc)"><svg width="14" height="14"><use href="#i-close"/></svg></button>
+          <button id="btn-find-close" class="btn-icon-sm" data-i18n-title="find.close" title="Schließen (Esc)"><svg width="14" height="14"><use href="#i-close"/></svg></button>
         </div>
         <div id="replace-row" class="find-row hidden">
-          <span class="find-label">Ersetzen</span>
+          <span class="find-label" data-i18n="find.replaceLabel">Ersetzen</span>
           <div class="find-input-wrap">
-            <input id="replace-input" class="find-input" type="text" placeholder="Ersetzen durch" spellcheck="false" autocomplete="off">
+            <input id="replace-input" class="find-input" type="text" data-i18n-placeholder="find.replacePlaceholder" placeholder="Ersetzen durch" spellcheck="false" autocomplete="off">
           </div>
-          <button id="btn-replace-one" class="btn btn-secondary btn-sm">Ersetzen</button>
-          <button id="btn-replace-all" class="btn btn-secondary btn-sm">Alle ersetzen</button>
+          <button id="btn-replace-one" class="btn btn-secondary btn-sm" data-i18n="find.replaceOne">Ersetzen</button>
+          <button id="btn-replace-all" class="btn btn-secondary btn-sm" data-i18n="find.replaceAll">Alle ersetzen</button>
         </div>
       </div>
 
@@ -202,19 +228,19 @@
         <div id="editor-panel" class="panel hidden">
           <div class="editor-container">
             <div id="line-gutter" class="line-gutter" aria-hidden="true"></div>
-            <textarea id="editor-textarea" class="editor-textarea" spellcheck="true" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Editor" wrap="off"></textarea>
+            <textarea id="editor-textarea" class="editor-textarea" spellcheck="true" autocomplete="off" autocorrect="off" autocapitalize="off" data-i18n-aria="editor.aria" aria-label="Editor" wrap="off"></textarea>
           </div>
           <div class="editor-statusbar">
             <span id="editor-status-pos">Zeile 1, Spalte 1</span>
             <span id="editor-status-lines">0 Zeilen</span>
             <span id="editor-status-words"></span>
             <span class="status-spacer"></span>
-            <button id="editor-status-eol" class="status-btn" title="Zeilenende umschalten (LF/CRLF)">LF</button>
+            <button id="editor-status-eol" class="status-btn" data-i18n-title="editor.eol" title="Zeilenende umschalten (LF/CRLF)">LF</button>
             <span id="editor-status-format"></span>
           </div>
         </div>
 
-        <div id="split-divider" class="split-divider hidden" title="Aufteilung ändern"></div>
+        <div id="split-divider" class="split-divider hidden" data-i18n-title="splitDivider.title" title="Aufteilung ändern"></div>
 
         <!-- Visualizer Panel -->
         <div id="visualizer-panel" class="panel">
@@ -224,8 +250,8 @@
           <iframe id="preview-iframe" class="preview-iframe hidden" sandbox="allow-scripts" title="Vorschau"></iframe>
           <div id="console-panel" class="console-panel hidden">
             <div class="console-header">
-              <span class="console-title">Konsole</span>
-              <button id="btn-console-clear" class="btn-icon-sm" title="Konsole leeren"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
+              <span class="console-title" data-i18n="console.title">Konsole</span>
+              <button id="btn-console-clear" class="btn-icon-sm" data-i18n-title="console.clear" title="Konsole leeren"><svg width="14" height="14"><use href="#i-trash"/></svg></button>
             </div>
             <div id="console-output" class="console-output"></div>
           </div>
@@ -236,34 +262,38 @@
           <div class="fix-syntax-container">
             <div class="fix-issues-list">
               <div class="fix-issues-header">
-                <span>Probleme</span>
+                <span data-i18n="fix.problems">Probleme</span>
                 <span id="fix-issue-count" class="issue-count-badge is-zero">0</span>
               </div>
               <div id="fix-issues-content" class="fix-issues-content">
-                <p class="fix-placeholder">Keine Probleme gefunden.</p>
+                <p class="fix-placeholder" data-i18n="fix.noProblems">Keine Probleme gefunden.</p>
               </div>
             </div>
             <div class="fix-diff-area">
               <div class="fix-diff-header">
-                <span>Vorschau der Änderungen</span>
+                <span data-i18n="fix.preview">Vorschau der Änderungen</span>
                 <span id="fix-diff-stats" class="fix-diff-stats"></span>
               </div>
               <div id="fix-diff-content" class="fix-diff-content">
-                <p class="fix-placeholder">Kein Diff verfügbar.</p>
+                <p class="fix-placeholder" data-i18n="fix.noDiff">Kein Diff verfügbar.</p>
               </div>
             </div>
           </div>
           <div class="fix-toolbar">
             <button id="btn-fix-scan" class="btn btn-secondary">
               <svg width="16" height="16"><use href="#i-search"/></svg>
-              Erneut scannen
+              <span data-i18n="fix.rescan">Erneut scannen</span>
             </button>
             <span id="fix-summary" class="fix-summary"></span>
             <span class="spacer"></span>
-            <button id="btn-fix-cancel" class="btn btn-secondary">Verwerfen</button>
-            <button id="btn-fix-apply" class="btn btn-primary" disabled>
+            <button id="btn-fix-cancel" class="btn btn-secondary" data-i18n="fix.discard">Verwerfen</button>
+            <button id="btn-fix-apply" class="btn btn-secondary" disabled>
               <svg width="16" height="16"><use href="#i-check"/></svg>
-              Alle Fixes übernehmen
+              <span data-i18n="fix.apply">Alle Fixes übernehmen</span>
+            </button>
+            <button id="btn-fix-save" class="btn btn-primary" disabled data-i18n-title="fix.saveTitle" title="Dokument speichern (Strg+S)">
+              <svg width="16" height="16"><use href="#i-save"/></svg>
+              <span data-i18n="fix.save">Speichern</span>
             </button>
           </div>
         </div>
@@ -273,60 +303,62 @@
 
   <!-- Hotkey Help Modal -->
   <div id="help-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
-    <div class="modal" style="width: 640px;">
+    <div class="modal" style="width: 660px;">
       <div class="modal-header">
-        <h3 id="help-title">Tastenkürzel</h3>
-        <button id="btn-help-close" class="btn-icon" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
+        <h3 id="help-title" data-i18n="help.title">Tastenkürzel</h3>
+        <button id="btn-help-close" class="btn-icon" data-i18n-title="common.close" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
       </div>
       <div class="modal-body help-shortcuts">
         <div class="help-columns">
           <div>
             <div class="help-group">
-              <h4>Datei</h4>
-              <div class="help-row"><span>Neues Dokument</span><span><kbd>Strg</kbd>+<kbd>N</kbd></span></div>
-              <div class="help-row"><span>Datei öffnen</span><span><kbd>Strg</kbd>+<kbd>O</kbd></span></div>
-              <div class="help-row"><span>Speichern</span><span><kbd>Strg</kbd>+<kbd>S</kbd></span></div>
-              <div class="help-row"><span>Speichern unter</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>S</kbd></span></div>
-              <div class="help-row"><span>Als PDF exportieren</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>E</kbd></span></div>
-              <div class="help-row"><span>Als HTML exportieren</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>H</kbd></span></div>
+              <h4 data-i18n="help.file">Datei</h4>
+              <div class="help-row"><span data-i18n="help.new">Neues Dokument</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>N</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.newDiagram">Neues Mermaid-Diagramm</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>N</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.open">Datei öffnen</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>O</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.save">Speichern</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>S</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.saveAs">Speichern unter</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>S</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.exportPdf">Als PDF exportieren</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>E</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.exportHtml">Als HTML exportieren</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>H</kbd></span></div>
             </div>
             <div class="help-group">
-              <h4>Bearbeiten</h4>
-              <div class="help-row"><span>Suchen</span><span><kbd>Strg</kbd>+<kbd>F</kbd></span></div>
-              <div class="help-row"><span>Ersetzen</span><span><kbd>Strg</kbd>+<kbd>H</kbd></span></div>
-              <div class="help-row"><span>Gehe zu Zeile</span><span><kbd>Strg</kbd>+<kbd>G</kbd></span></div>
-              <div class="help-row"><span>Fix Syntax</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>F</kbd></span></div>
-              <div class="help-row"><span>Code ausführen (JS/TS)</span><span><kbd>Strg</kbd>+<kbd>R</kbd></span></div>
+              <h4 data-i18n="help.edit">Bearbeiten</h4>
+              <div class="help-row"><span data-i18n="help.find">Suchen</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>F</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.replace">Ersetzen</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>H</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.goto">Gehe zu Zeile</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>G</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.fix">Fix Syntax</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>F</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.run">Code ausführen (JS/TS)</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>R</kbd></span></div>
             </div>
             <div class="help-group">
-              <h4>Im Editor</h4>
-              <div class="help-row"><span>Einrücken / Ausrücken</span><span><kbd>Tab</kbd> / <kbd>⇧</kbd>+<kbd>Tab</kbd></span></div>
-              <div class="help-row"><span>Zeile verschieben</span><span><kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></span></div>
-              <div class="help-row"><span>Zeile duplizieren</span><span><kbd>Strg</kbd>+<kbd>D</kbd></span></div>
-              <div class="help-row"><span>Zeile löschen</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>K</kbd></span></div>
-              <div class="help-row"><span>Fett / Kursiv</span><span><kbd>Strg</kbd>+<kbd>⇧</kbd>+<kbd>B</kbd> / <kbd>I</kbd></span></div>
+              <h4 data-i18n="help.inEditor">Im Editor</h4>
+              <div class="help-row"><span data-i18n="help.indent">Einrücken / Ausrücken</span><span><kbd>Tab</kbd> / <kbd>⇧</kbd>+<kbd>Tab</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.moveLine">Zeile verschieben</span><span><kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.dupLine">Zeile duplizieren</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>D</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.delLine">Zeile löschen</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>K</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.boldItalic">Fett / Kursiv</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>⇧</kbd>+<kbd>B</kbd> / <kbd>I</kbd></span></div>
             </div>
           </div>
           <div>
             <div class="help-group">
-              <h4>Ansicht</h4>
-              <div class="help-row"><span>Visualizer / Editor / Fix Syntax</span><span><kbd>Strg</kbd>+<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd></span></div>
-              <div class="help-row"><span>Editor ein/aus</span><span><kbd>Strg</kbd>+<kbd>E</kbd></span></div>
-              <div class="help-row"><span>Live-Vorschau neben Editor</span><span><kbd>Strg</kbd>+<kbd>\</kbd></span></div>
-              <div class="help-row"><span>Inhaltsverzeichnis</span><span><kbd>Strg</kbd>+<kbd>B</kbd></span></div>
-              <div class="help-row"><span>Hell/Dunkel wechseln</span><span><kbd>Strg</kbd>+<kbd>T</kbd></span></div>
-              <div class="help-row"><span>Vergrößern / Verkleinern</span><span><kbd>Strg</kbd>+<kbd>+</kbd> / <kbd>−</kbd></span></div>
-              <div class="help-row"><span>Zoom zurücksetzen</span><span><kbd>Strg</kbd>+<kbd>0</kbd></span></div>
-              <div class="help-row"><span>Zoom mit Mausrad</span><span><kbd>Strg</kbd>+<kbd>Rad</kbd></span></div>
-              <div class="help-row"><span>Vollbild</span><span><kbd>F11</kbd></span></div>
-              <div class="help-row"><span>Menüleiste anzeigen</span><span><kbd>Alt</kbd></span></div>
+              <h4 data-i18n="help.view">Ansicht</h4>
+              <div class="help-row"><span data-i18n="help.modes">Visualizer / Editor / Fix Syntax</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.toggleEditor">Editor ein/aus</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>E</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.split">Live-Vorschau neben Editor</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>\</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.toc">Inhaltsverzeichnis</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>B</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.theme">Hell/Dunkel wechseln</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>T</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.zoom">Vergrößern / Verkleinern</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>+</kbd> / <kbd>−</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.zoomReset">Zoom zurücksetzen</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>0</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.zoomWheel">Zoom mit Mausrad</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd data-i18n="key.wheel">Rad</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.diagram">Diagramm zoomen / verschieben</span><span><kbd data-i18n="key.wheel">Rad</kbd> / <kbd data-i18n="key.drag">Ziehen</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.fullscreen">Vollbild</span><span><kbd>F11</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.menubar">Menüleiste anzeigen</span><span><kbd>Alt</kbd></span></div>
             </div>
             <div class="help-group">
-              <h4>Allgemein</h4>
-              <div class="help-row"><span>Tastenkürzel</span><span><kbd>F1</kbd></span></div>
-              <div class="help-row"><span>Dialog schließen</span><span><kbd>Esc</kbd></span></div>
-              <div class="help-row"><span>Entwicklertools</span><span><kbd>F12</kbd></span></div>
-              <div class="help-row"><span>Beenden</span><span><kbd>Strg</kbd>+<kbd>Q</kbd></span></div>
+              <h4 data-i18n="help.general">Allgemein</h4>
+              <div class="help-row"><span data-i18n="help.shortcuts">Tastenkürzel</span><span><kbd>F1</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.closeDialog">Dialog schließen</span><span><kbd>Esc</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.devtools">Entwicklertools</span><span><kbd>F12</kbd></span></div>
+              <div class="help-row"><span data-i18n="help.quit">Beenden</span><span><kbd data-i18n="key.ctrl">Strg</kbd>+<kbd>Q</kbd></span></div>
             </div>
           </div>
         </div>
@@ -336,47 +368,47 @@
 
   <!-- Goto Line Dialog -->
   <div id="goto-dialog" class="goto-dialog hidden">
-    <label for="goto-input">Gehe zu Zeile:</label>
-    <input type="number" id="goto-input" class="goto-input" min="1" placeholder="Zeile">
-    <button id="btn-goto-go" class="btn btn-primary btn-sm">Los</button>
-    <button id="btn-goto-close" class="btn-icon-sm" title="Schließen"><svg width="14" height="14"><use href="#i-close"/></svg></button>
+    <label for="goto-input" data-i18n="goto.label">Gehe zu Zeile:</label>
+    <input type="number" id="goto-input" class="goto-input" min="1" data-i18n-placeholder="goto.placeholder" placeholder="Zeile">
+    <button id="btn-goto-go" class="btn btn-primary btn-sm" data-i18n="goto.go">Los</button>
+    <button id="btn-goto-close" class="btn-icon-sm" data-i18n-title="common.close" title="Schließen"><svg width="14" height="14"><use href="#i-close"/></svg></button>
   </div>
 
   <!-- Export Modal -->
   <div id="pdf-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pdf-modal-title">
     <div class="modal">
       <div class="modal-header">
-        <h3 id="pdf-modal-title">Exportieren</h3>
-        <button id="btn-modal-close" class="btn-icon" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
+        <h3 id="pdf-modal-title" data-i18n="export.title">Exportieren</h3>
+        <button id="btn-modal-close" class="btn-icon" data-i18n-title="common.close" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
       </div>
       <div class="modal-body">
-        <div class="modal-section-title">Inhalt</div>
+        <div class="modal-section-title" data-i18n="export.content">Inhalt</div>
         <label class="checkbox-label" id="pdf-include-toc-row">
           <input type="checkbox" id="pdf-include-toc" checked>
           <span class="checkbox-custom"></span>
-          Inhaltsverzeichnis einschließen
+          <span data-i18n="export.includeToc">Inhaltsverzeichnis einschließen</span>
         </label>
-        <p class="modal-hint" id="pdf-toc-hint">Erzeugt eine Übersichtsseite mit klickbaren Links zu allen Überschriften.</p>
+        <p class="modal-hint" id="pdf-toc-hint" data-i18n="export.tocHint">Erzeugt eine Übersichtsseite mit klickbaren Links zu allen Überschriften.</p>
         <label class="checkbox-label hidden" id="pdf-line-numbers-row">
           <input type="checkbox" id="pdf-line-numbers">
           <span class="checkbox-custom"></span>
-          Zeilennummern einschließen
+          <span data-i18n="export.lineNumbers">Zeilennummern einschließen</span>
         </label>
 
-        <div class="modal-section-title">PDF-Optionen</div>
+        <div class="modal-section-title" data-i18n="export.pdfOptions">PDF-Optionen</div>
         <label class="checkbox-label">
           <input type="checkbox" id="pdf-outline" checked>
           <span class="checkbox-custom"></span>
-          Lesezeichen (PDF-Gliederung) aus Überschriften erzeugen
+          <span data-i18n="export.outline">Lesezeichen (PDF-Gliederung) aus Überschriften erzeugen</span>
         </label>
         <label class="checkbox-label">
           <input type="checkbox" id="pdf-page-numbers" checked>
           <span class="checkbox-custom"></span>
-          Seitenzahlen und Dokumenttitel
+          <span data-i18n="export.pageNumbers">Seitenzahlen und Dokumenttitel</span>
         </label>
         <div class="form-row">
           <div class="form-group">
-            <label for="pdf-page-size">Seitenformat</label>
+            <label for="pdf-page-size" data-i18n="export.pageSize">Seitenformat</label>
             <select id="pdf-page-size" class="select">
               <option value="A4" selected>A4</option>
               <option value="A3">A3</option>
@@ -386,19 +418,20 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="pdf-orientation">Ausrichtung</label>
+            <label for="pdf-orientation" data-i18n="export.orientation">Ausrichtung</label>
             <select id="pdf-orientation" class="select">
-              <option value="portrait" selected>Hochformat</option>
-              <option value="landscape">Querformat</option>
+              <option value="portrait" selected data-i18n="export.portrait">Hochformat</option>
+              <option value="landscape" data-i18n="export.landscape">Querformat</option>
             </select>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button id="btn-html-export" class="btn btn-secondary" title="Eigenständige HTML-Datei mit eingebetteten Styles und Bildern">Als HTML</button>
+        <button id="btn-html-export" class="btn btn-secondary" data-i18n="export.asHtml" data-i18n-title="export.asHtmlTitle" title="Eigenständige HTML-Datei mit eingebetteten Styles und Bildern">Als HTML</button>
+        <button id="btn-svg-export" class="btn btn-secondary hidden" data-i18n="export.asSvg" data-i18n-title="export.asSvgTitle" title="Diagramm als SVG-Datei speichern">Als SVG</button>
         <span class="spacer"></span>
-        <button id="btn-pdf-cancel" class="btn btn-secondary">Abbrechen</button>
-        <button id="btn-pdf-export" class="btn btn-primary">PDF exportieren</button>
+        <button id="btn-pdf-cancel" class="btn btn-secondary" data-i18n="common.cancel">Abbrechen</button>
+        <button id="btn-pdf-export" class="btn btn-primary" data-i18n="export.pdf">PDF exportieren</button>
       </div>
     </div>
   </div>
@@ -407,18 +440,36 @@
   <div id="drop-decision-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modal-header">
-        <h3 id="drop-decision-title">Datei ablegen</h3>
-        <button id="btn-drop-decision-close" class="btn-icon" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
+        <h3 id="drop-decision-title" data-i18n="drop.title">Datei ablegen</h3>
+        <button id="btn-drop-decision-close" class="btn-icon" data-i18n-title="common.close" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
       </div>
       <div class="modal-body">
         <p id="drop-decision-file" class="drop-decision-file"></p>
         <p id="drop-decision-message" class="drop-decision-message"></p>
       </div>
       <div class="modal-footer">
-        <button id="btn-drop-cancel" class="btn btn-secondary">Abbrechen</button>
+        <button id="btn-drop-cancel" class="btn btn-secondary" data-i18n="drop.cancel">Abbrechen</button>
         <button id="btn-drop-open" class="btn btn-secondary">Als neues Dokument öffnen</button>
         <button id="btn-drop-insert" class="btn btn-primary">In aktuelles Dokument einfügen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- In-App-Bestätigungsdialog (ungespeicherte Änderungen, externe Änderung) -->
+  <div id="app-dialog" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-message">
+    <div class="modal modal-dialog">
+      <div class="modal-header">
+        <h3 id="app-dialog-title"></h3>
+        <button id="btn-app-dialog-close" class="btn-icon" data-i18n-title="common.close" title="Schließen"><svg width="18" height="18"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="modal-body app-dialog-body">
+        <div id="app-dialog-icon" class="app-dialog-icon is-warning"></div>
+        <div class="app-dialog-text">
+          <p id="app-dialog-message" class="app-dialog-message"></p>
+          <p id="app-dialog-detail" class="app-dialog-detail hidden"></p>
+        </div>
+      </div>
+      <div id="app-dialog-footer" class="modal-footer"></div>
     </div>
   </div>
 
@@ -426,8 +477,8 @@
   <div id="drop-overlay" class="drop-overlay hidden">
     <div class="drop-message">
       <svg width="48" height="48"><use href="#i-arrow-down"/></svg>
-      <span id="drop-message-text">Datei hier ablegen</span>
-      <span id="drop-message-hint" class="drop-hint">Die Anwendung öffnet die abgelegte Datei.</span>
+      <span id="drop-message-text" data-i18n="drop.here">Datei hier ablegen</span>
+      <span id="drop-message-hint" class="drop-hint" data-i18n="drop.openHint">Die Anwendung öffnet die abgelegte Datei.</span>
     </div>
   </div>
 
@@ -435,9 +486,13 @@
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="../shared/locales.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/toast.js"></script>
+  <script src="js/dialogs.js"></script>
   <script src="js/toc-manager.js"></script>
   <script src="js/scroll-spy.js"></script>
+  <script src="js/mermaid-engine.js"></script>
   <script src="js/pdf-export.js"></script>
   <script src="js/editor-manager.js"></script>
   <script src="js/preview-engine.js"></script>

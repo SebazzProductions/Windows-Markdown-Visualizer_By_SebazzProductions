@@ -13,6 +13,8 @@ const EditorManager = (() => {
   let onChangeCallback = null;
   let onScrollCallback = null;
   let onEolToggle = null;
+  let onCursorLine = null;
+  let lastReportedLine = 0;
   let lineCount = 0;
   let activeGutterLine = null;
   let isMarkdown = true;
@@ -32,6 +34,7 @@ const EditorManager = (() => {
     onChangeCallback = callbacks.onChange || null;
     onScrollCallback = callbacks.onScroll || null;
     onEolToggle = callbacks.onEolToggle || null;
+    onCursorLine = callbacks.onCursorLine || null;
 
     textarea.addEventListener('input', () => {
       updateLineNumbers();
@@ -392,17 +395,22 @@ const EditorManager = (() => {
 
     const selLen = textarea.selectionEnd - textarea.selectionStart;
     statusPos.textContent = selLen > 0
-      ? `Zeile ${line}, Spalte ${col} (${selLen} ausgewählt)`
-      : `Zeile ${line}, Spalte ${col}`;
-    statusLines.textContent = `${lineCount} ${lineCount === 1 ? 'Zeile' : 'Zeilen'}`;
+      ? I18n.t('editor.posSelected', { line, col, count: selLen })
+      : I18n.t('editor.pos', { line, col });
+    statusLines.textContent = I18n.plural(lineCount, 'editor.lineOne', 'editor.lines');
 
     if (statusWords) {
       if (val.length <= 500000) {
         const words = val.trim() ? val.trim().split(/\s+/).length : 0;
-        statusWords.textContent = `${words} ${words === 1 ? 'Wort' : 'Wörter'} · ${val.length} Zeichen`;
+        statusWords.textContent = I18n.plural(words, 'editor.wordOne', 'editor.words', { words, chars: val.length });
       } else {
-        statusWords.textContent = `${val.length} Zeichen`;
+        statusWords.textContent = I18n.t('editor.chars', { chars: val.length });
       }
+    }
+
+    if (onCursorLine && line !== lastReportedLine) {
+      lastReportedLine = line;
+      onCursorLine(line);
     }
 
     const target = gutter.children[line - 1] || null;
@@ -529,10 +537,25 @@ const EditorManager = (() => {
     if (textarea) textarea.focus();
   }
 
+  /** Statusleiste neu beschriften (Sprachwechsel). */
+  function refreshStatus() {
+    lastReportedLine = 0;
+    updateStatus();
+  }
+
+  function getCursorLine() {
+    if (!textarea) return 1;
+    const val = textarea.value;
+    const pos = textarea.selectionStart;
+    let line = 1;
+    for (let i = 0; i < pos; i++) if (val.charCodeAt(i) === 10) line++;
+    return line;
+  }
+
   return {
     init, setContent, getContent, getSelection, setSelection, replaceSelection, insertTextAtCursor,
     updateLineNumbers, goToLine, scrollToLine, getTopVisibleLine, getScrollInfo, getLineCount,
     getSelectedText, findAll, selectMatch, replaceAll,
-    setFormatLabel, setEolLabel, setSpellcheck, focus
+    setFormatLabel, setEolLabel, setSpellcheck, focus, refreshStatus, getCursorLine
   };
 })();

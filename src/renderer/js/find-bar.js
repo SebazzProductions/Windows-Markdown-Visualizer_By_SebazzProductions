@@ -107,7 +107,7 @@ const FindBar = (() => {
     const editor = getMode() === 'editor';
     btnReplaceOne.disabled = !editor;
     btnReplaceAll.disabled = !editor;
-    hintEl.textContent = editor ? '' : (supportsHighlights ? '' : 'Hervorhebung nicht verfügbar');
+    hintEl.textContent = editor ? '' : (supportsHighlights ? '' : I18n.t('find.noHighlight'));
   }
 
   /**
@@ -274,7 +274,7 @@ const FindBar = (() => {
     onReplaced(count);
     search();
     if (count > 0) {
-      Toast.success(`${count} ${count === 1 ? 'Stelle' : 'Stellen'} ersetzt`);
+      Toast.success(I18n.plural(count, 'find.replacedOne', 'find.replacedMany'));
     }
   }
 

@@ -459,3 +459,128 @@
   .help-columns { grid-template-columns: 1fr; }
   .goto-dialog { right: 8px; left: 8px; }
 }
+
+/* =============================================
+   DIAGRAMM-BÜHNE (Mermaid-Dokumente)
+   ============================================= */
+
+.markdown-body.is-diagram {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.markdown-body.is-diagram .markdown-article,
+.markdown-body.is-diagram.reading-width .markdown-article {
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 1rem;
+}
+
+.mermaid-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+}
+
+.diagram-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-border);
+  min-height: 36px;
+  user-select: none;
+}
+.diagram-toolbar .spacer { flex: 1; }
+.diagram-zoom-label {
+  min-width: 3.6rem;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.diagram-zoom-label:hover { color: var(--text-primary); }
+.diagram-hint {
+  margin-left: 0.75rem;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diagram-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+  background-color: var(--bg-primary);
+  background-image:
+    linear-gradient(var(--border-light) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-light) 1px, transparent 1px);
+  background-size: 24px 24px;
+  transition: opacity 0.15s ease;
+}
+.diagram-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-color); }
+.diagram-canvas.is-dragging { cursor: grabbing; }
+.diagram-canvas.has-error .diagram-viewport { opacity: 0.35; filter: grayscale(0.6); }
+
+.diagram-viewport {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  user-select: none;
+}
+.diagram-viewport svg { display: block; }
+
+.diagram-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+.diagram-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 30%;
+  overflow-y: auto;
+}
+.diagram-error svg { flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 900px) {
+  .diagram-hint { display: none; }
+}

@@ -3,7 +3,7 @@
  */
 const FixSyntaxManager = (() => {
   let issuesContent, issueCountBadge, diffContent, diffStats, summaryEl;
-  let btnApply, btnCancel, btnScan;
+  let btnApply, btnCancel, btnScan, btnSave;
 
   let currentOriginal = '';
   let currentFormatted = '';
@@ -11,11 +11,14 @@ const FixSyntaxManager = (() => {
   let onApplyCallback = null;
   let getSourceCallback = null;
   let onGotoLine = null;
+  let onSave = null;
+  let extraIssues = null;     // async (source, filePath) => issues[] – z. B. Mermaid-Syntaxprüfung
   let lastFilePath = null;
   let scanSeq = 0;
 
   const DIFF_MAX_CELLS = 6_000_000; // LCS-Tabelle (Uint16) – darüber vereinfachter Diff
   const CONTEXT_LINES = 3;
+  const t = (key, params) => I18n.t(key, params);
 
   function init(options = {}) {
     issuesContent = document.getElementById('fix-issues-content');
@@ -26,13 +29,17 @@ const FixSyntaxManager = (() => {
     btnApply = document.getElementById('btn-fix-apply');
     btnCancel = document.getElementById('btn-fix-cancel');
     btnScan = document.getElementById('btn-fix-scan');
+    btnSave = document.getElementById('btn-fix-save');
     onApplyCallback = options.onApply || null;
     getSourceCallback = options.getSource || null;
     onGotoLine = options.onGotoLine || null;
+    onSave = options.onSave || null;
+    extraIssues = options.extraIssues || null;
 
     btnApply.addEventListener('click', applyFix);
     btnCancel.addEventListener('click', reset);
     btnScan.addEventListener('click', rescan);
+    if (btnSave) btnSave.addEventListener('click', () => { if (onSave) onSave(); });
 
     issuesContent.addEventListener('click', (e) => {
       const item = e.target.closest('.issue-item');
@@ -44,6 +51,10 @@ const FixSyntaxManager = (() => {
     });
   }
 
+  function setSaveEnabled(enabled) {
+    if (btnSave) btnSave.disabled = !enabled;
+  }
+
   async function analyze(source, filePath) {
     currentOriginal = source;
     lastFilePath = filePath;
@@ -51,18 +62,26 @@ const FixSyntaxManager = (() => {
     setScanningState(true);
 
     try {
-      const result = await window.api.formatCode(filePath || '.txt', source);
+      const [result, extra] = await Promise.all([
+        window.api.formatCode(filePath || '.txt', source),
+        extraIssues ? extraIssues(source, filePath).catch(() => []) : Promise.resolve([])
+      ]);
       if (seq !== scanSeq) return; // veraltetes Ergebnis
       currentFormatted = typeof result.formatted === 'string' ? result.formatted : currentOriginal;
-      currentIssues = Array.isArray(result.issues) ? result.issues : [];
+      currentIssues = [...(Array.isArray(extra) ? extra : []), ...(Array.isArray(result.issues) ? result.issues : [])]
+        .sort((a, b) => (Number(a.line) || 0) - (Number(b.line) || 0));
     } catch (err) {
       if (seq !== scanSeq) return;
       currentFormatted = currentOriginal;
-      currentIssues = [{ line: 1, message: `Analyse fehlgeschlagen: ${err.message}`, severity: 'error' }];
+      currentIssues = [{ line: 1, message: t('fix.failed', { error: err.message }), severity: 'error' }];
     } finally {
       if (seq === scanSeq) setScanningState(false);
     }
 
+    renderResults();
+  }
+
+  function renderResults() {
     renderIssues();
     renderDiff();
     const hasChanges = currentOriginal !== currentFormatted;
@@ -73,27 +92,28 @@ const FixSyntaxManager = (() => {
     if (summaryEl) {
       const errors = currentIssues.filter(i => i.severity === 'error').length;
       const warnings = currentIssues.filter(i => i.severity === 'warning').length;
-      const parts = [];
-      if (errors) parts.push(`${errors} Fehler`);
-      if (warnings) parts.push(`${warnings} ${warnings === 1 ? 'Warnung' : 'Warnungen'}`);
       const infos = count - errors - warnings;
-      if (infos) parts.push(`${infos} ${infos === 1 ? 'Hinweis' : 'Hinweise'}`);
-      summaryEl.textContent = parts.join(' · ') || (hasChanges ? 'Formatierung kann verbessert werden' : 'Alles in Ordnung');
+      const parts = [];
+      if (errors) parts.push(I18n.plural(errors, 'fix.errorOne', 'fix.errors'));
+      if (warnings) parts.push(I18n.plural(warnings, 'fix.warningOne', 'fix.warnings'));
+      if (infos) parts.push(I18n.plural(infos, 'fix.infoOne', 'fix.infos'));
+      summaryEl.textContent = parts.join(' · ') || (hasChanges ? t('fix.improvableShort') : t('fix.allGood'));
     }
   }
 
   function renderIssues() {
     if (!issuesContent) return;
     if (currentIssues.length === 0) {
-      issuesContent.innerHTML = `<p class="fix-placeholder">${currentOriginal === currentFormatted ? 'Keine Probleme gefunden.' : 'Formatierung kann verbessert werden – siehe Vorschau.'}</p>`;
+      issuesContent.innerHTML = `<p class="fix-placeholder">${escapeHtml(currentOriginal === currentFormatted ? t('fix.noProblems') : t('fix.improvable'))}</p>`;
       return;
     }
     const icon = { error: 'i-error', warning: 'i-alert', info: 'i-info' };
     issuesContent.innerHTML = currentIssues.map(issue => {
       const severity = ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info';
-      return `<button type="button" class="issue-item issue-severity-${severity}" data-line="${Number(issue.line) || 1}" title="Zur Zeile ${Number(issue.line) || 1} springen">
+      const line = Number(issue.line) || 1;
+      return `<button type="button" class="issue-item issue-severity-${severity}" data-line="${line}" title="${escapeHtml(t('fix.gotoLine', { line }))}">
         <svg class="issue-icon"><use href="#${icon[severity]}"/></svg>
-        <span class="issue-line">Z. ${Number(issue.line) || '?'}</span>
+        <span class="issue-line">${escapeHtml(t('fix.lineAbbr'))} ${Number(issue.line) || '?'}</span>
         <span class="issue-message">${escapeHtml(issue.message)}</span>
       </button>`;
     }).join('');
@@ -102,7 +122,7 @@ const FixSyntaxManager = (() => {
   function renderDiff() {
     if (!diffContent) return;
     if (currentOriginal === currentFormatted) {
-      diffContent.innerHTML = '<p class="fix-placeholder">Keine Änderungen erforderlich.</p>';
+      diffContent.innerHTML = `<p class="fix-placeholder">${escapeHtml(t('fix.noChanges'))}</p>`;
       if (diffStats) diffStats.textContent = '';
       return;
     }
@@ -144,8 +164,8 @@ const FixSyntaxManager = (() => {
 
   function lcsDiff(a, b) {
     const n = a.length, m = b.length;
-    if (n === 0) return b.map((t, j) => ({ type: 'added', text: t, f: j + 1 }));
-    if (m === 0) return a.map((t, i) => ({ type: 'removed', text: t, o: i + 1 }));
+    if (n === 0) return b.map((text, j) => ({ type: 'added', text, f: j + 1 }));
+    if (m === 0) return a.map((text, i) => ({ type: 'removed', text, o: i + 1 }));
     const width = m + 1;
     const dp = new Uint16Array((n + 1) * width);
     for (let i = n - 1; i >= 0; i--) {
@@ -203,7 +223,7 @@ const FixSyntaxManager = (() => {
     let lastOrigLine = 0;
     const flushSkip = () => {
       if (skipped > 0) {
-        html += `<div class="diff-skip">… ${skipped} unveränderte ${skipped === 1 ? 'Zeile' : 'Zeilen'}</div>`;
+        html += `<div class="diff-skip">${escapeHtml(I18n.plural(skipped, 'fix.skippedOne', 'fix.skipped'))}</div>`;
         skipped = 0;
       }
     };
@@ -214,7 +234,7 @@ const FixSyntaxManager = (() => {
       if (op.o) lastOrigLine = op.o;
       const num = op.type === 'added' ? op.f : op.o;
       const origLine = op.o || lastOrigLine || 1;
-      html += `<div class="diff-line ${op.type}" data-orig-line="${origLine}" title="Zur Zeile ${origLine} im Editor springen">
+      html += `<div class="diff-line ${op.type}" data-orig-line="${origLine}" title="${escapeHtml(t('fix.gotoLineEditor', { line: origLine }))}">
         <span class="diff-line-num">${num ?? ''}</span>
         <span class="diff-line-content">${escapeHtml(op.text || '')}</span>
       </div>`;
@@ -232,8 +252,8 @@ const FixSyntaxManager = (() => {
     currentOriginal = '';
     currentFormatted = '';
     currentIssues = [];
-    if (issuesContent) issuesContent.innerHTML = '<p class="fix-placeholder">Keine Probleme gefunden.</p>';
-    if (diffContent) diffContent.innerHTML = '<p class="fix-placeholder">Kein Diff verfügbar.</p>';
+    if (issuesContent) issuesContent.innerHTML = `<p class="fix-placeholder">${escapeHtml(t('fix.noProblems'))}</p>`;
+    if (diffContent) diffContent.innerHTML = `<p class="fix-placeholder">${escapeHtml(t('fix.noDiff'))}</p>`;
     if (diffStats) diffStats.textContent = '';
     if (summaryEl) summaryEl.textContent = '';
     if (issueCountBadge) { issueCountBadge.textContent = '0'; issueCountBadge.classList.add('is-zero'); }
@@ -248,6 +268,11 @@ const FixSyntaxManager = (() => {
     }
   }
 
+  /** Texte nach Sprachwechsel neu aufbauen (ohne erneute Analyse). */
+  function relabel() {
+    if (currentOriginal || currentIssues.length) renderResults();
+  }
+
   function setSource(source, filePath) {
     currentOriginal = source;
     lastFilePath = filePath;
@@ -260,8 +285,8 @@ const FixSyntaxManager = (() => {
   }
 
   function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { init, analyze, reset, setSource, rescan, diffLines };
+  return { init, analyze, reset, setSource, rescan, relabel, setSaveEnabled, diffLines };
 })();

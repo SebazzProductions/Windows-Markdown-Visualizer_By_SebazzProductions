@@ -67,7 +67,7 @@ const Toast = (() => {
 
     const close = document.createElement('button');
     close.className = 'btn-icon-sm';
-    close.title = 'Schließen';
+    close.title = typeof I18n !== 'undefined' ? I18n.t('common.close') : 'Schließen';
     close.innerHTML = '<svg width="14" height="14"><use href="#i-close"/></svg>';
     close.addEventListener('click', () => dismiss(el));
     el.appendChild(close);

@@ -352,3 +352,62 @@
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: bold; }
 .hljs-link { text-decoration: underline; }
+
+/* =============================================
+   MERMAID-DIAGRAMME IM MARKDOWN (und Export)
+   ============================================= */
+
+.markdown-article figure.mermaid-diagram {
+  position: relative;
+  margin: 1.25em 0;
+  padding: 1em 1.25em;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  text-align: center;
+  overflow-x: auto;
+}
+.markdown-article figure.mermaid-diagram > svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+.markdown-article figure.mermaid-diagram.has-error {
+  text-align: left;
+  padding: 0;
+  border-color: var(--danger-color);
+  background: transparent;
+}
+.markdown-article figure.mermaid-diagram.has-error pre { margin: 0; border-radius: 10px 10px 0 0; }
+
+.mermaid-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55em 0.9em;
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  font-size: 0.82em;
+  line-height: 1.45;
+  border-radius: 0 0 10px 10px;
+  text-align: left;
+  word-break: break-word;
+}
+.mermaid-error svg { flex-shrink: 0; margin-top: 2px; }
+
+.diagram-actions {
+  position: absolute;
+  top: 0.5em;
+  right: 0.6em;
+  display: flex;
+  gap: 0.3rem;
+}
+.diagram-actions .code-copy {
+  position: static;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border-color: var(--border-color);
+}
+.markdown-article figure.mermaid-diagram:hover .diagram-actions .code-copy,
+.diagram-actions .code-copy:focus-visible { opacity: 1; }
+.diagram-actions .code-copy:hover { background: var(--bg-tertiary); color: var(--text-primary); }

@@ -41,7 +41,7 @@ const TOCManager = (() => {
         const toggle = document.createElement('button');
         toggle.classList.add('toc-toggle');
         toggle.classList.toggle('expanded', expanded);
-        toggle.title = expanded ? 'Einklappen' : 'Ausklappen';
+        toggle.title = I18n.t(expanded ? 'toc.collapse' : 'toc.expand');
         toggle.setAttribute('aria-expanded', String(expanded));
         toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
         toggle.addEventListener('click', (e) => {
@@ -87,7 +87,7 @@ const TOCManager = (() => {
     childrenDiv.classList.toggle('expanded', expand);
     toggleBtn.classList.toggle('expanded', expand);
     toggleBtn.setAttribute('aria-expanded', String(expand));
-    toggleBtn.title = expand ? 'Einklappen' : 'Ausklappen';
+    toggleBtn.title = I18n.t(expand ? 'toc.collapse' : 'toc.expand');
     const id = li.dataset.headingId;
     if (expand) collapsedIds.delete(id); else collapsedIds.add(id);
   }
@@ -146,7 +146,7 @@ const TOCManager = (() => {
     if (currentHeadings.length === 0) {
       const p = document.createElement('p');
       p.className = 'toc-empty';
-      p.textContent = 'Keine Überschriften gefunden';
+      p.textContent = I18n.t('toc.empty');
       tocContainer.appendChild(p);
       return;
     }
@@ -205,5 +205,10 @@ const TOCManager = (() => {
     return currentHeadings;
   }
 
-  return { init, update, setActive, expandToHeading, setAllExpanded, applyFilter, getHeadings };
+  /** Nach Sprachwechsel neu zeichnen (Platzhalter, Tooltips). */
+  function relabel() {
+    update(currentHeadings);
+  }
+
+  return { init, update, setActive, expandToHeading, setAllExpanded, applyFilter, getHeadings, relabel };
 })();

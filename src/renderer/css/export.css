@@ -89,3 +89,13 @@ body.export-print .markdown-article a { color: var(--accent-color); border-botto
 /* Code-Export (Code-Datei als Dokument) */
 body.export-code .code-view { font-size: 0.8em; }
 body.export-code .code-view-gutter { white-space: pre; }
+
+/* ---- Mermaid-Diagramme ---- */
+.diagram-actions { display: none !important; }
+.markdown-article figure.mermaid-export {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.markdown-article figure.mermaid-export > svg { max-width: 100%; height: auto; }
+body.export-print .markdown-article figure.mermaid-diagram { break-inside: avoid; }

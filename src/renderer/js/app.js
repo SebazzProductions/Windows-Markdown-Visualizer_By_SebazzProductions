@@ -4,12 +4,17 @@
 (function () {
   'use strict';
 
+  const t = (key, params) => I18n.t(key, params);
+
+  const MARKDOWN_FORMAT = { id: 'markdown', label: 'Markdown', kind: 'markdown', language: 'markdown', canFormat: true, canExecute: false };
+  const MERMAID_FORMAT = { id: 'mermaid', label: 'Mermaid', kind: 'mermaid', language: 'plaintext', canFormat: true, canExecute: false };
+
   // ---- Dokument-Zustand ----
   const doc = {
     filePath: null,
     fileName: '',
     source: '',
-    format: { id: 'markdown', label: 'Markdown', kind: 'markdown', language: 'markdown', canFormat: true, canExecute: false },
+    format: { ...MARKDOWN_FORMAT },
     headings: [],
     eol: 'lf',
     bom: false,
@@ -25,6 +30,7 @@
   let currentMode = 'visualizer'; // 'visualizer' | 'editor' | 'fix-syntax'
   let effectiveTheme = document.documentElement.getAttribute('data-theme') || 'light';
   let liveRenderTimer = null;
+  let headingsTimer = null;
   let autosaveTimer = null;
   let syncLock = { source: null, until: 0 };
   let dragCounter = 0;
@@ -52,9 +58,11 @@
   const fileNameEl = $('file-name');
   const formatBadge = $('format-badge');
   const dirtyIndicator = $('dirty-indicator');
+  const btnSave = $('btn-save');
   const zoomBadge = $('zoom-badge');
   const btnOpenFile = $('btn-open-file');
   const btnNewFile = $('btn-new-file');
+  const btnNewDiagram = $('btn-new-diagram');
   const btnThemeToggle = $('btn-theme-toggle');
   const btnExportPdf = $('btn-export-pdf');
   const btnRunCode = $('btn-run-code');
@@ -84,19 +92,22 @@
   const gotoInput = $('goto-input');
   const btnGotoGo = $('btn-goto-go');
   const btnGotoClose = $('btn-goto-close');
+  const langButtons = document.querySelectorAll('.lang-toggle [data-lang]');
 
   // ---- Module initialisieren ----
   Toast.init();
+  AppDialog.init();
   TOCManager.init(tocContent, navigateToHeading);
-  ScrollSpy.init(contentArea, (headingId) => TOCManager.setActive(headingId));
-  PreviewEngine.init();
+  ScrollSpy.init(contentArea, (headingId) => { if (currentMode !== 'editor') TOCManager.setActive(headingId); });
+  PreviewEngine.init({ onInsertTemplate: insertDiagramTemplate });
   PDFExport.init({
     getDocument: () => doc.loaded ? {
-      title: doc.fileName ? doc.fileName.replace(/\.[^.]+$/, '') : 'Dokument',
+      title: doc.fileName ? doc.fileName.replace(/\.[^.]+$/, '') : t('doc.default'),
       fileName: doc.fileName || 'dokument',
       filePath: doc.filePath,
       headings: doc.headings,
       isCodeView: PreviewEngine.isCodeView(),
+      isDiagramView: PreviewEngine.isDiagramView(),
       theme: effectiveTheme
     } : null
   });
@@ -109,11 +120,12 @@
       scheduleAutosave();
     },
     onScroll: () => syncPreviewFromEditor(),
+    onCursorLine: (line) => syncTocFromEditor(line),
     onEolToggle: () => {
       doc.eol = doc.eol === 'crlf' ? 'lf' : 'crlf';
       EditorManager.setEolLabel(doc.eol);
       setDirty(true);
-      Toast.info(`Zeilenende: ${doc.eol.toUpperCase()} – wird beim Speichern übernommen`);
+      Toast.info(t('editor.eolChanged', { eol: doc.eol.toUpperCase() }));
     }
   });
   FindBar.init({
@@ -129,29 +141,77 @@
       await refreshVisualizer({ force: true });
       FixSyntaxManager.setSource(fixedSource, analysisPath());
       FixSyntaxManager.analyze(fixedSource, analysisPath());
-      Toast.success('Korrekturen übernommen');
+      Toast.success(t('fix.applied'));
     },
     getSource: () => doc.source,
     onGotoLine: (line) => {
       switchMode('editor');
       EditorManager.goToLine(line, { select: true });
-    }
+    },
+    onSave: () => saveFile(),
+    extraIssues: (source) => (doc.format.kind === 'mermaid' ? MermaidEngine.validate(source) : Promise.resolve([]))
   });
 
   function analysisPath() {
     if (doc.filePath) return doc.filePath;
-    const ext = doc.format && doc.format.id === 'markdown' ? '.md' : '.txt';
+    const ext = doc.format && doc.format.id === 'mermaid' ? '.mmd' : (doc.format && doc.format.id === 'markdown' ? '.md' : '.txt');
     return `${doc.fileName || 'unbenannt'}${doc.fileName && doc.fileName.includes('.') ? '' : ext}`;
   }
+
+  // =====================================================================
+  // Sprache
+  // =====================================================================
+
+  function applyLanguage(lang) {
+    const changed = I18n.setLanguage(lang);
+    langButtons.forEach(btn => {
+      const active = btn.dataset.lang === I18n.getLanguage();
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    if (!changed) return;
+    // Dynamische Texte neu beschriften
+    updateTitle();
+    updateFormatUi();
+    updateSaveButtons();
+    EditorManager.refreshStatus();
+    TOCManager.relabel();
+    FixSyntaxManager.relabel();
+    FindBar.refresh();
+    renderRecentFiles();
+    if (doc.loaded && (doc.format.kind === 'mermaid' || PreviewEngine.hasDiagrams() || doc.format.kind === 'css')) {
+      // Diagramm-Bühne / CSS-Vorschau enthalten übersetzte Texte → neu rendern
+      doc.renderedVersion = -1;
+      if (!visualizerPanel.classList.contains('hidden')) refreshVisualizer({ force: true, preserveScroll: true });
+    } else if (doc.loaded && doc.format.kind === 'markdown') {
+      doc.renderedVersion = -1; // Front-Matter-Label, Kopieren-Buttons
+      if (!visualizerPanel.classList.contains('hidden')) refreshVisualizer({ force: true, preserveScroll: true });
+    }
+  }
+
+  langButtons.forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.lang === I18n.getLanguage()) return;
+    setSetting('language', btn.dataset.lang);
+    applyLanguage(btn.dataset.lang);
+  }));
+
+  window.api.on('language-changed', (lang) => applyLanguage(lang));
 
   // =====================================================================
   // Einstellungen / Theme
   // =====================================================================
 
   function applyTheme(theme) {
-    effectiveTheme = theme === 'dark' ? 'dark' : 'light';
+    const next = theme === 'dark' ? 'dark' : 'light';
+    const changed = next !== effectiveTheme;
+    effectiveTheme = next;
     document.documentElement.setAttribute('data-theme', effectiveTheme);
     try { localStorage.setItem('mv-effective-theme', effectiveTheme); } catch { /* ignore */ }
+    PreviewEngine.setTheme(effectiveTheme);
+    if (changed && doc.loaded && PreviewEngine.hasDiagrams()) {
+      doc.renderedVersion = -1;
+      if (!visualizerPanel.classList.contains('hidden')) refreshVisualizer({ force: true, preserveScroll: true });
+    }
   }
 
   function applyZoom(zoom) {
@@ -162,7 +222,7 @@
     ScrollSpy.refresh();
   }
 
-  function applySplit() {
+  function applySplit({ render = true } = {}) {
     const split = Boolean(settings && settings.splitView) && currentMode === 'editor';
     panels.classList.toggle('is-split', split);
     panels.style.setProperty('--split-ratio', `${Math.round((settings ? settings.splitRatio : 0.5) * 100)}%`);
@@ -170,7 +230,7 @@
     visualizerPanel.classList.toggle('hidden', !(split || currentMode === 'visualizer'));
     btnSplit.classList.toggle('active', Boolean(settings && settings.splitView));
     btnSplit.classList.toggle('hidden', currentMode !== 'editor');
-    if (split) {
+    if (split && render) {
       const pending = doc.renderedVersion !== doc.version ? refreshVisualizer({ preserveScroll: true }) : Promise.resolve();
       pending.then(() => syncPreviewFromEditor(true));
     }
@@ -178,6 +238,7 @@
 
   function applySettings(s) {
     settings = s;
+    applyLanguage(s.effectiveLanguage || I18n.getLanguage());
     applyTheme(s.effectiveTheme || effectiveTheme);
     applyZoom(s.zoom);
     contentArea.classList.toggle('reading-width', s.readingWidth !== false);
@@ -310,19 +371,69 @@
     });
   })();
 
+  /**
+   * Klick im Inhaltsverzeichnis: im Visualizer zur Überschrift scrollen,
+   * im Editor zur Quellzeile springen (und ggf. die Live-Vorschau mitnehmen).
+   */
   function navigateToHeading(headingId) {
-    const target = article.querySelector(`#${CSS.escape(headingId)}`);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const heading = doc.headings.find(h => h.id === headingId);
+    if (currentMode === 'editor') {
+      if (heading && heading.line) EditorManager.goToLine(heading.line);
       TOCManager.setActive(headingId);
+      if (panels.classList.contains('is-split')) scrollPreviewToHeading(headingId);
+      return;
     }
+    scrollPreviewToHeading(headingId, true);
+    TOCManager.setActive(headingId);
+  }
+
+  function scrollPreviewToHeading(headingId, smooth = false) {
+    const target = article.querySelector(`#${CSS.escape(headingId)}`);
+    if (!target) return;
+    if (smooth) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      lockSync('editor');
+      setPreviewScroll(target.getBoundingClientRect().top - contentArea.getBoundingClientRect().top + contentArea.scrollTop - 16);
+    }
+  }
+
+  /** Aktiven TOC-Eintrag anhand der Cursorzeile im Editor setzen. */
+  function syncTocFromEditor(line) {
+    if (currentMode !== 'editor' || !tocAvailable() || doc.headings.length === 0) return;
+    let active = null;
+    for (const h of doc.headings) {
+      if (h.line && h.line <= line) active = h.id;
+      else if (h.line && h.line > line) break;
+    }
+    TOCManager.setActive(active);
+  }
+
+  /** Überschriften im Editor-Modus (ohne Vorschau) aktuell halten. */
+  function scheduleHeadingsRefresh() {
+    clearTimeout(headingsTimer);
+    if (doc.format.kind !== 'markdown') return;
+    headingsTimer = setTimeout(async () => {
+      const version = doc.version;
+      try {
+        const headings = await window.api.extractHeadings(doc.source);
+        if (version !== doc.version || doc.renderedVersion === doc.version) return;
+        doc.headings = headings || [];
+        TOCManager.update(doc.headings);
+        syncTocFromEditor(EditorManager.getCursorLine());
+      } catch { /* ignorieren */ }
+    }, 400);
   }
 
   // =====================================================================
   // Modus / Tabs
   // =====================================================================
 
-  function switchMode(mode) {
+  /**
+   * @param {'visualizer'|'editor'|'fix-syntax'} mode
+   * @param {{render?: boolean}} [opts]  render=false: nur Oberfläche umschalten (Aufrufer rendert selbst)
+   */
+  function switchMode(mode, { render = true } = {}) {
     if (!doc.loaded && mode !== 'visualizer') return;
     const previous = currentMode;
     currentMode = mode;
@@ -341,17 +452,20 @@
       EditorManager.setFormatLabel(doc.format.label, doc.format.kind === 'markdown');
       EditorManager.setEolLabel(doc.eol);
       EditorManager.focus();
+      syncTocFromEditor(EditorManager.getCursorLine());
     } else if (mode === 'fix-syntax') {
       if (doc.loaded) {
         FixSyntaxManager.setSource(doc.source, analysisPath());
         FixSyntaxManager.analyze(doc.source, analysisPath());
       }
-    } else if (mode === 'visualizer') {
-      refreshVisualizer({ preserveScroll: previous === 'editor' && Boolean(settings && settings.splitView) });
+    } else if (mode === 'visualizer' && render) {
+      refreshVisualizer({ preserveScroll: previous === 'editor' && Boolean(settings && settings.splitView) })
+        .then(() => ScrollSpy.refresh());
     }
 
-    applySplit();
+    applySplit({ render });
     syncTocVisibility();
+    updateSaveButtons();
     FindBar.refresh();
   }
 
@@ -372,30 +486,40 @@
     doc.isDirty = dirty;
     dirtyIndicator.classList.toggle('hidden', !dirty);
     updateTitle();
+    updateSaveButtons();
     if (changed || dirty) {
       window.api.setDocumentState({ isDirty: dirty, filePath: doc.filePath });
     }
   }
 
+  /** Speichern-Buttons: in Editor und Fix Syntax sichtbar, aktiv sobald es Änderungen gibt. */
+  function updateSaveButtons() {
+    const show = doc.loaded && (currentMode !== 'visualizer' || doc.isDirty);
+    btnSave.classList.toggle('hidden', !show);
+    btnSave.disabled = !doc.isDirty;
+    btnSave.title = doc.isDirty ? t('toolbar.saveTitle') : t('toolbar.saved');
+    FixSyntaxManager.setSaveEnabled(doc.isDirty);
+  }
+
   function updateTitle() {
     if (!doc.loaded) {
-      window.api.setTitle('Markdown Visualizer');
+      window.api.setTitle(t('app.name'));
       return;
     }
     const prefix = doc.isDirty ? '● ' : '';
-    window.api.setTitle(`${prefix}${doc.fileName || 'Unbenannt'} – Markdown Visualizer`);
-    fileNameEl.textContent = doc.fileName || 'Unbenannt';
-    fileNameEl.title = doc.filePath || 'Noch nicht gespeichert';
+    window.api.setTitle(`${prefix}${doc.fileName || t('doc.untitled')} – ${t('app.name')}`);
+    fileNameEl.textContent = doc.fileName || t('doc.untitled');
+    fileNameEl.title = doc.filePath || t('doc.notSaved');
     fileNameEl.classList.toggle('is-clickable', Boolean(doc.filePath));
   }
 
   function updateFormatUi() {
     formatBadge.textContent = doc.format.label;
-    formatBadge.classList.remove('hidden');
+    formatBadge.classList.toggle('hidden', !doc.loaded);
     PreviewEngine.setExecutionMode(false);
-    PreviewEngine.showRunButton(Boolean(doc.format.canExecute));
+    PreviewEngine.showRunButton(Boolean(doc.loaded && doc.format.canExecute));
     btnRunCode.classList.remove('active');
-    btnRunCode.title = 'Code ausführen (Strg+R)';
+    btnRunCode.title = t('toolbar.run');
     EditorManager.setFormatLabel(doc.format.label, doc.format.kind === 'markdown');
     EditorManager.setEolLabel(doc.eol);
     EditorManager.setSpellcheck(Boolean(settings && settings.spellcheck !== false) && isProseFormat());
@@ -411,7 +535,7 @@
 
   async function confirmDiscardIfDirty() {
     if (!doc.isDirty) return true;
-    const choice = await window.api.confirmDiscard(doc.fileName || 'Unbenannt');
+    const choice = await AppDialog.confirmUnsaved(doc.fileName || t('doc.untitled'));
     if (choice === 'cancel') return false;
     if (choice === 'save') {
       const saved = await saveFile();
@@ -426,7 +550,7 @@
       const filePath = await window.api.openFileDialog();
       if (filePath) await loadFile(filePath, { targetMode: 'visualizer' });
     } catch (err) {
-      Toast.error(`Datei konnte nicht geöffnet werden: ${err.message}`);
+      Toast.error(cleanError(err), { title: t('toast.openFailed') });
     }
   }
 
@@ -452,6 +576,7 @@
       doc.loaded = true;
       doc.version++;
       doc.renderedVersion = -1;
+      if (!options.preserveMode) PreviewEngine.resetDiagramView();
       setDirty(false);
       updateTitle();
       updateFormatUi();
@@ -460,14 +585,20 @@
       TOCManager.update([]);
       EditorManager.setContent(result.content, { preserveCursor: Boolean(options.preserveCursor) });
 
-      if (targetMode === 'visualizer' || (settings && settings.splitView && targetMode === 'editor')) {
-        await refreshVisualizer({ force: true, preserveScroll: Boolean(options.preserveScroll) });
-      }
-      switchMode(targetMode);
+      // Oberfläche sofort umschalten, dann rendern (ein Klick während eines langen
+      // Renderings – z. B. erstes Laden von Mermaid – wird so nicht überschrieben)
+      const willRender = targetMode === 'visualizer' || (settings && settings.splitView && targetMode === 'editor');
+      switchMode(targetMode, { render: false });
       window.api.watchFile(result.filePath);
+      if (willRender) {
+        await refreshVisualizer({ force: true, preserveScroll: Boolean(options.preserveScroll) });
+        if (currentMode === 'editor') syncPreviewFromEditor(true);
+      } else if (fmt.kind === 'markdown') {
+        scheduleHeadingsRefresh();
+      }
       return true;
     } catch (err) {
-      Toast.error(cleanError(err), { title: 'Datei konnte nicht geöffnet werden' });
+      Toast.error(cleanError(err), { title: t('toast.openFailed') });
       if (!doc.loaded) renderRecentFiles();
       return false;
     }
@@ -478,27 +609,42 @@
     return msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   }
 
-  function newDocument() {
+  /**
+   * Neues Dokument – Markdown oder Mermaid-Diagramm (startet mit einer Vorlage).
+   */
+  async function newDocument(kind = 'markdown') {
+    const isDiagram = kind === 'mermaid';
+    const fileName = isDiagram ? t('doc.untitledDiagram') : t('doc.untitledMarkdown');
+    const source = isDiagram ? (MermaidEngine.getPreset('flowchart', I18n.getLanguage()) || { code: 'flowchart LR\n  A --> B\n' }).code : '';
+    let fmt = isDiagram ? { ...MERMAID_FORMAT } : { ...MARKDOWN_FORMAT };
+    try { fmt = await window.api.detectFormat(fileName, source); } catch { /* Standard verwenden */ }
+
     doc.filePath = null;
-    doc.fileName = 'Unbenannt.md';
-    doc.source = '';
+    doc.fileName = fileName;
+    doc.source = source;
     doc.eol = 'crlf';
     doc.bom = false;
-    doc.format = { id: 'markdown', label: 'Markdown', kind: 'markdown', language: 'markdown', canFormat: true, canExecute: false };
+    doc.format = fmt;
     doc.headings = [];
     doc.isUntitled = true;
     doc.loaded = true;
     doc.version++;
     doc.renderedVersion = -1;
+    PreviewEngine.resetDiagramView();
     window.api.watchFile(null);
     setDirty(false);
     updateTitle();
     updateFormatUi();
     showApp();
     TOCManager.update([]);
-    EditorManager.setContent('');
+    EditorManager.setContent(source);
     article.innerHTML = '';
+    if (isDiagram && settings && !settings.splitView) {
+      // Ein Diagramm ohne Live-Vorschau zu schreiben ist mühsam → Vorschau einschalten
+      await setSetting('splitView', true);
+    }
     switchMode('editor');
+    if (isDiagram) EditorManager.setSelection(source.length, source.length);
   }
 
   function showApp() {
@@ -506,15 +652,16 @@
     appLayout.classList.remove('hidden');
   }
 
-  async function saveFile() {
+  async function saveFile({ silent = false } = {}) {
     if (!doc.loaded) return false;
     if (!doc.filePath) return saveFileAs();
     try {
       await window.api.saveFile(doc.filePath, doc.source, { eol: doc.eol, bom: doc.bom });
       setDirty(false);
+      if (!silent) Toast.success(t('toast.saved'), { duration: 1500 });
       return true;
     } catch (err) {
-      Toast.error(cleanError(err), { title: 'Speichern fehlgeschlagen' });
+      Toast.error(cleanError(err), { title: t('toast.saveFailed') });
       return false;
     }
   }
@@ -522,7 +669,7 @@
   async function saveFileAs() {
     if (!doc.loaded) return false;
     try {
-      const result = await window.api.saveFileAs(doc.source, doc.fileName || 'unbenannt.md', { eol: doc.eol, bom: doc.bom });
+      const result = await window.api.saveFileAs(doc.source, doc.fileName || t('doc.untitledMarkdown'), { eol: doc.eol, bom: doc.bom });
       if (!result.success) return false;
       doc.filePath = result.filePath;
       doc.fileName = result.fileName;
@@ -543,10 +690,10 @@
           FixSyntaxManager.analyze(doc.source, doc.filePath);
         }
       }
-      Toast.success(`Gespeichert als ${result.fileName}`);
+      Toast.success(t('toast.savedAs', { name: result.fileName }));
       return true;
     } catch (err) {
-      Toast.error(cleanError(err), { title: 'Speichern fehlgeschlagen' });
+      Toast.error(cleanError(err), { title: t('toast.saveFailed') });
       return false;
     }
   }
@@ -555,7 +702,7 @@
     clearTimeout(autosaveTimer);
     if (!settings || !settings.autosave || !doc.filePath || !doc.isDirty) return;
     autosaveTimer = setTimeout(() => {
-      if (doc.isDirty && doc.filePath) saveFile();
+      if (doc.isDirty && doc.filePath) saveFile({ silent: true });
     }, 1500);
   }
 
@@ -586,19 +733,44 @@
     }
     doc.renderedVersion = version;
 
-    contentArea.classList.add('no-smooth');
-    contentArea.scrollTop = preserveScroll ? scrollTop : 0;
-    requestAnimationFrame(() => contentArea.classList.remove('no-smooth'));
+    if (doc.format.kind !== 'mermaid') {
+      contentArea.classList.add('no-smooth');
+      contentArea.scrollTop = preserveScroll ? scrollTop : 0;
+      requestAnimationFrame(() => contentArea.classList.remove('no-smooth'));
+    }
     FindBar.refresh();
   }
 
   function scheduleLiveRender() {
     clearTimeout(liveRenderTimer);
     const visible = !visualizerPanel.classList.contains('hidden');
-    if (!visible) return;
+    if (!visible) {
+      scheduleHeadingsRefresh();
+      return;
+    }
     liveRenderTimer = setTimeout(() => {
       refreshVisualizer({ preserveScroll: true }).then(() => syncPreviewFromEditor(true));
     }, 300);
+  }
+
+  /**
+   * Vorlage aus der Diagramm-Bühne: leeres Dokument ersetzen, sonst anhängen.
+   */
+  function insertDiagramTemplate(code) {
+    if (!doc.loaded) return;
+    const current = EditorManager.getContent();
+    if (!current.trim()) {
+      EditorManager.setContent(code);
+      setSource(code);
+    } else {
+      const sep = current.endsWith('\n') ? '\n' : '\n\n';
+      EditorManager.setSelection(current.length, current.length);
+      EditorManager.replaceSelection(`${sep}${code}`);
+      setSource(EditorManager.getContent());
+    }
+    PreviewEngine.resetDiagramView();
+    if (currentMode !== 'editor') switchMode('editor');
+    refreshVisualizer({ force: true });
   }
 
   /**
@@ -627,7 +799,7 @@
   function attachImageFallback(img) {
     img.addEventListener('error', () => {
       img.classList.add('is-broken');
-      img.alt = img.alt || 'Bild nicht gefunden';
+      img.alt = img.alt || t('image.broken');
     }, { once: true });
   }
 
@@ -658,7 +830,7 @@
           const resolved = await window.api.resolvePath(doc.filePath, relPath || '.');
           if (!resolved || !resolved.exists) {
             link.classList.add('is-missing');
-            Toast.warning(`Ziel nicht gefunden: ${relPath}`);
+            Toast.warning(t('toast.targetMissing', { target: relPath }));
             return;
           }
           if (resolved.isFile && resolved.supported) {
@@ -726,8 +898,8 @@
       const next = items[idx + 1];
       if (next && next.line > cur.line) {
         const nextTop = next.el.getBoundingClientRect().top - base;
-        const t = (topLine - cur.line) / (next.line - cur.line);
-        target = curTop + t * (nextTop - curTop);
+        const ratio = (topLine - cur.line) / (next.line - cur.line);
+        target = curTop + ratio * (nextTop - curTop);
       } else {
         target = curTop;
       }
@@ -832,7 +1004,7 @@
     if (!doc.loaded || !doc.format.canExecute) return;
     const isExec = PreviewEngine.toggleExecution();
     btnRunCode.classList.toggle('active', isExec);
-    btnRunCode.title = isExec ? 'Code anzeigen' : 'Code ausführen (Strg+R)';
+    btnRunCode.title = isExec ? t('toolbar.runStop') : t('toolbar.run');
     if (currentMode !== 'visualizer') switchMode('visualizer');
     refreshVisualizer({ force: true });
   }
@@ -857,9 +1029,10 @@
       li.title = filePath;
       li.innerHTML = `<span class="recent-item-icon"><svg width="16" height="16"><use href="#i-file"/></svg></span>
         <span class="recent-item-text"><span class="recent-item-name"></span><span class="recent-item-dir"></span></span>
-        <button class="btn-icon-sm recent-item-remove" title="Aus Liste entfernen"><svg width="12" height="12"><use href="#i-close"/></svg></button>`;
+        <button class="btn-icon-sm recent-item-remove"><svg width="12" height="12"><use href="#i-close"/></svg></button>`;
       li.querySelector('.recent-item-name').textContent = name;
       li.querySelector('.recent-item-dir').textContent = dir;
+      li.querySelector('.recent-item-remove').title = t('welcome.removeRecent');
       li.addEventListener('click', (e) => {
         if (e.target.closest('.recent-item-remove')) return;
         openDocument(filePath, { targetMode: 'visualizer' });
@@ -883,14 +1056,14 @@
 
   function updateDropOverlayText() {
     if (!doc.loaded || currentMode === 'visualizer') {
-      dropMessageText.textContent = 'Datei zum Öffnen ablegen';
-      dropMessageHint.textContent = 'Die Anwendung öffnet die abgelegte Datei.';
+      dropMessageText.textContent = t('drop.toOpen');
+      dropMessageHint.textContent = t('drop.openHint');
     } else if (currentMode === 'editor') {
-      dropMessageText.textContent = 'Datei im Editor ablegen';
-      dropMessageHint.textContent = 'Sie können den Inhalt an der Cursorposition einfügen oder die Datei als neues Dokument öffnen.';
+      dropMessageText.textContent = t('drop.inEditor');
+      dropMessageHint.textContent = t('drop.editorHint');
     } else {
-      dropMessageText.textContent = 'Datei für Fix Syntax ablegen';
-      dropMessageHint.textContent = 'Sie können den Inhalt in dieses Dokument einfügen oder die Datei separat in Fix Syntax bearbeiten.';
+      dropMessageText.textContent = t('drop.inFix');
+      dropMessageHint.textContent = t('drop.fixHint');
     }
   }
 
@@ -944,15 +1117,15 @@
     const fileName = filePath.split(/[\\/]/).pop();
     pendingDropSelection = EditorManager.getSelection();
     if (currentMode === 'fix-syntax') {
-      dropDecisionTitle.textContent = 'Datei in Fix Syntax ablegen';
-      dropDecisionMessage.textContent = `Möchten Sie den Inhalt von ${fileName} in dieses Dokument einfügen oder die Datei als neues Dokument in Fix Syntax bearbeiten?`;
-      btnDropOpen.textContent = 'Als neues Dokument bearbeiten';
-      btnDropInsert.textContent = 'In dieses Dokument einfügen';
+      dropDecisionTitle.textContent = t('drop.fixTitle');
+      dropDecisionMessage.textContent = t('drop.fixMessage', { name: fileName });
+      btnDropOpen.textContent = t('drop.fixOpen');
+      btnDropInsert.textContent = t('drop.fixInsert');
     } else {
-      dropDecisionTitle.textContent = 'Datei im Editor ablegen';
-      dropDecisionMessage.textContent = `Möchten Sie den Inhalt von ${fileName} an der aktuellen Cursorposition einfügen oder die Datei als neues Dokument öffnen?`;
-      btnDropOpen.textContent = 'Als neues Dokument öffnen';
-      btnDropInsert.textContent = 'An Cursorposition einfügen';
+      dropDecisionTitle.textContent = t('drop.editorTitle');
+      dropDecisionMessage.textContent = t('drop.editorMessage', { name: fileName });
+      btnDropOpen.textContent = t('drop.editorOpen');
+      btnDropInsert.textContent = t('drop.editorInsert');
     }
     dropDecisionFile.textContent = filePath;
     dropDecisionModal.classList.remove('hidden');
@@ -1002,7 +1175,7 @@
         await openDocument(filePath, { targetMode: currentMode });
       }
     } catch (err) {
-      Toast.error(cleanError(err), { title: 'Datei konnte nicht verarbeitet werden' });
+      Toast.error(cleanError(err), { title: t('toast.processFailed') });
     } finally {
       pendingDropSelection = null;
     }
@@ -1052,7 +1225,9 @@
   // =====================================================================
 
   btnOpenFile.addEventListener('click', openFileDialog);
-  btnNewFile.addEventListener('click', async () => { if (await confirmDiscardIfDirty()) newDocument(); });
+  btnNewFile.addEventListener('click', async () => { if (await confirmDiscardIfDirty()) newDocument('markdown'); });
+  btnNewDiagram.addEventListener('click', async () => { if (await confirmDiscardIfDirty()) newDocument('mermaid'); });
+  btnSave.addEventListener('click', () => saveFile());
   btnThemeToggle.addEventListener('click', toggleTheme);
   btnExportPdf.addEventListener('click', () => { if (doc.loaded) PDFExport.showModal(); });
   btnSplit.addEventListener('click', () => setSetting('splitView', !(settings && settings.splitView)).then(applySplit));
@@ -1067,7 +1242,7 @@
   window.api.on('file-changed', async (filePath) => {
     if (!doc.filePath || filePath.toLowerCase() !== doc.filePath.toLowerCase()) return;
     if (doc.isDirty) {
-      const choice = await window.api.confirmReloadExternal(doc.fileName);
+      const choice = await AppDialog.confirmReload(doc.fileName);
       if (choice !== 'reload') return;
     }
     const scrollPos = contentArea.scrollTop;
@@ -1075,31 +1250,36 @@
     if (currentMode === 'visualizer') {
       requestAnimationFrame(() => { contentArea.scrollTop = scrollPos; });
     }
-    Toast.info('Datei wurde extern geändert und neu geladen', { duration: 2500 });
+    Toast.info(t('toast.externalReload'), { duration: 2500 });
   });
 
   window.api.on('file-removed', (filePath) => {
     if (!doc.filePath || filePath.toLowerCase() !== doc.filePath.toLowerCase()) return;
     setDirty(true);
-    Toast.warning('Die Datei wurde außerhalb der Anwendung gelöscht oder verschoben. Mit Speichern wird sie neu angelegt.', { duration: 8000 });
+    Toast.warning(t('toast.fileRemoved'), { duration: 8000 });
   });
 
-  window.api.on('request-close', async () => {
+  /**
+   * Fenster schließen mit ungespeicherten Änderungen → In-App-Dialog
+   * (Speichern / Nicht speichern / Abbrechen).
+   */
+  async function handleCloseRequest() {
     if (closing) return;
     closing = true;
     try {
       if (!doc.isDirty) { await window.api.confirmClose(); return; }
-      const choice = await window.api.confirmDiscard(doc.fileName || 'Unbenannt');
+      const choice = await AppDialog.confirmUnsaved(doc.fileName || t('doc.untitled'));
       if (choice === 'cancel') return;
       if (choice === 'save') {
-        const saved = await saveFile();
+        const saved = await saveFile({ silent: true });
         if (!saved) return;
       }
       await window.api.confirmClose();
     } finally {
       closing = false;
     }
-  });
+  }
+  window.api.on('request-close', handleCloseRequest);
 
   // Befehle kommen über das Menü (Accelerator) ODER die Tastatur im Renderer.
   // Beide Wege laufen hier zusammen; identische Befehle innerhalb von 250 ms werden entprellt.
@@ -1110,16 +1290,21 @@
     if (lastCommand.name === command && lastCommand.payload === payload && now - lastCommand.time < 250) return;
     lastCommand = { name: command, payload, time: now };
     switch (command) {
-      case 'new-file': if (await confirmDiscardIfDirty()) newDocument(); break;
+      case 'new-file': if (await confirmDiscardIfDirty()) newDocument('markdown'); break;
+      case 'new-diagram': if (await confirmDiscardIfDirty()) newDocument('mermaid'); break;
       case 'open-file': openFileDialog(); break;
       case 'open-recent': openDocument(payload, { targetMode: 'visualizer' }); break;
       case 'save': if (doc.loaded) saveFile(); break;
       case 'save-as': if (doc.loaded) saveFileAs(); break;
       case 'export-pdf': if (doc.loaded) PDFExport.showModal(); break;
       case 'export-html': if (doc.loaded) PDFExport.exportHtml(); break;
-      case 'show-in-folder': if (doc.filePath) window.api.showInFolder(doc.filePath); else Toast.info('Das Dokument wurde noch nicht gespeichert.'); break;
+      case 'export-svg':
+        if (!doc.loaded) break;
+        if (PreviewEngine.isDiagramView()) PDFExport.exportSvg(); else Toast.info(t('export.notSvg'));
+        break;
+      case 'show-in-folder': if (doc.filePath) window.api.showInFolder(doc.filePath); else Toast.info(t('toast.notSaved')); break;
       case 'copy-path':
-        if (doc.filePath) { window.api.copyToClipboard(doc.filePath); Toast.success('Pfad kopiert'); }
+        if (doc.filePath) { window.api.copyToClipboard(doc.filePath); Toast.success(t('toast.pathCopied')); }
         break;
       case 'find': if (doc.loaded) FindBar.open(); break;
       case 'replace': if (doc.loaded) FindBar.open({ replace: true }); break;
@@ -1152,6 +1337,7 @@
     if (!ctrl || e.altKey) return null;
     if (e.shiftKey) {
       switch (key) {
+        case 'n': return ['new-diagram'];
         case 's': return ['save-as'];
         case 'e': return ['export-pdf'];
         case 'h': return ['export-html'];
@@ -1183,6 +1369,11 @@
   }
 
   document.addEventListener('keydown', (e) => {
+    if (AppDialog.isOpen()) {
+      // Dialog ist modal: nur Esc (im Dialog behandelt) und Tab/Enter
+      if (e.key === 'Escape') { e.preventDefault(); AppDialog.cancel(); }
+      return;
+    }
     const mapped = commandForKey(e);
     if (mapped) {
       e.preventDefault();
@@ -1216,18 +1407,23 @@
   // =====================================================================
 
   (async () => {
+    I18n.apply();
     try {
       applySettings(await window.api.getSettings());
     } catch (err) {
       console.error('Einstellungen konnten nicht geladen werden:', err);
       settings = { zoom: 100, tocVisible: true, readingWidth: true, splitView: false, splitRatio: 0.5, spellcheck: true, pdf: {} };
+      applyLanguage('de');
     }
     renderRecentFiles();
+    updateSaveButtons();
     try {
       const initialFile = await window.api.getInitialFile();
       if (initialFile) await loadFile(initialFile, { targetMode: 'visualizer' });
     } catch (err) {
-      Toast.error(cleanError(err), { title: 'Datei konnte nicht geöffnet werden' });
+      Toast.error(cleanError(err), { title: t('toast.openFailed') });
     }
+    // Mermaid-Bundle (3,5 MB) im Leerlauf vorladen, damit das erste Diagramm ohne Wartezeit erscheint
+    setTimeout(() => { MermaidEngine.load().catch(() => {}); }, 2500);
   })();
 })();
