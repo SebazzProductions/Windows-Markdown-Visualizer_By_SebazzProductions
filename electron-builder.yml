@@ -1,24 +1,45 @@
 appId: com.markdownvisualizer.app
 productName: Markdown Visualizer
+copyright: Copyright © 2026 SebazzProductions
+artifactName: ${productName}-${version}-${arch}-${os}.${ext}
+
 directories:
   output: dist
+  buildResources: build
+
+# Nur das, was zur Laufzeit gebraucht wird (Dev-Dependencies werden automatisch ausgeschlossen)
 files:
   - src/**/*
-  - node_modules/**/*
   - package.json
+  - "!**/*.map"
+  - "!**/{test,tests,__tests__,e2e,docs,example,examples}/**"
+  - "!**/{.github,.vscode,.idea}/**"
+  - "!**/*.{md,markdown,ts,tsx,flow}"
+  - "!**/{CHANGELOG,LICENSE,README}*"
+
+asar: true
+compression: maximum
+
 win:
-  target: nsis
+  target:
+    - target: nsis
+      arch: [x64]
   icon: build/icon.ico
   fileAssociations:
     - ext: md
       name: Markdown File
       description: Markdown Document
-      role: Viewer
+      role: Editor
       icon: build/icon.ico
     - ext: markdown
       name: Markdown File
       description: Markdown Document
-      role: Viewer
+      role: Editor
+      icon: build/icon.ico
+    - ext: mdown
+      name: Markdown File
+      description: Markdown Document
+      role: Editor
       icon: build/icon.ico
     - ext: html
       name: HTML File
@@ -33,31 +54,55 @@ win:
     - ext: css
       name: CSS File
       description: CSS Stylesheet
-      role: Viewer
+      role: Editor
       icon: build/icon.ico
     - ext: js
       name: JavaScript File
       description: JavaScript File
-      role: Viewer
+      role: Editor
       icon: build/icon.ico
     - ext: ts
       name: TypeScript File
       description: TypeScript File
-      role: Viewer
+      role: Editor
       icon: build/icon.ico
     - ext: json
       name: JSON File
       description: JSON Document
-      role: Viewer
+      role: Editor
+      icon: build/icon.ico
+    - ext: yaml
+      name: YAML File
+      description: YAML Document
+      role: Editor
+      icon: build/icon.ico
+    - ext: yml
+      name: YAML File
+      description: YAML Document
+      role: Editor
       icon: build/icon.ico
     - ext: txt
       name: Text File
       description: Text Document
-      role: Viewer
+      role: Editor
       icon: build/icon.ico
+
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   perMachine: false
+  deleteAppDataOnUninstall: false
+  shortcutName: Markdown Visualizer
+  installerLanguages: [de_DE, en_US]
+  language: 1031
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+publish:
+  provider: github
+  owner: SebazzProductions
+  repo: Windows-Markdown-Visualizer_By_SebazzProductions
+  releaseType: release

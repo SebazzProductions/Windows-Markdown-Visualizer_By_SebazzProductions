@@ -1,83 +1,16 @@
+/**
+ * E2E – Kernfunktionen (Version 1.x), weitergeführt
+ */
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { pathToFileURL } = require('url');
 const { test, expect } = require('@playwright/test');
-const { _electron: electron } = require('playwright');
-
-const repoRoot = path.join(__dirname, '..');
-const mainEntry = path.join(repoRoot, 'src', 'main', 'main.js');
-const fixturesDir = path.join(__dirname, 'fixtures');
-const tempDirs = new Set();
-
-function resolveFixturePath(fileNameOrPath) {
-  return path.isAbsolute(fileNameOrPath)
-    ? fileNameOrPath
-    : path.join(fixturesDir, fileNameOrPath);
-}
-
-function createTempFixtureCopy(sourceName, targetName = sourceName) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mv-e2e-'));
-  const sourcePath = resolveFixturePath(sourceName);
-  const targetPath = path.join(dir, targetName);
-  fs.copyFileSync(sourcePath, targetPath);
-  tempDirs.add(dir);
-  return targetPath;
-}
-
-async function dispatchFileDrop(window, selector, filePath) {
-  const fileUrl = pathToFileURL(filePath).toString();
-
-  await window.evaluate(({ targetSelector, url }) => {
-    const target = document.querySelector(targetSelector) || document.body;
-    const dataTransfer = new DataTransfer();
-    dataTransfer.setData('text/uri-list', url);
-    dataTransfer.setData('text/plain', url);
-
-    ['dragenter', 'dragover', 'drop'].forEach(type => {
-      const event = new DragEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        dataTransfer
-      });
-      target.dispatchEvent(event);
-    });
-  }, { targetSelector: selector, url: fileUrl });
-}
+const { launchApp, createTempFixtureCopy, createTempDir, resolveFixturePath, dispatchFileDrop, cleanupTempDirs } = require('./helpers');
 
 async function overridePdfExportTarget(window, targetPath) {
-  await window.evaluate((pdfPath) => {
-    window.__mvE2ePdfTargetPath = pdfPath;
-  }, targetPath);
+  await window.evaluate((pdfPath) => { window.__mvE2ePdfTargetPath = pdfPath; }, targetPath);
 }
 
-async function launchApp(fixtureNameOrPath) {
-  const inputPath = resolveFixturePath(fixtureNameOrPath);
-  const expectedFileName = path.basename(inputPath);
-
-  const electronApp = await electron.launch({
-    args: [mainEntry, inputPath],
-    env: {
-      ...process.env,
-      CI: '1',
-      ELECTRON_DISABLE_SECURITY_WARNINGS: '1'
-    }
-  });
-
-  const window = await electronApp.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
-  await expect(window.locator('#app-layout')).toBeVisible();
-  await expect(window.locator('#file-name')).toHaveText(expectedFileName);
-
-  return { electronApp, window };
-}
-
-test.afterEach(() => {
-  for (const dir of tempDirs) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-  tempDirs.clear();
-});
+test.afterEach(() => cleanupTempDirs());
 
 test('stellt das Inhaltsverzeichnis dar und navigiert ueber TOC-Links', async () => {
   const { electronApp, window } = await launchApp('toc.md');
@@ -239,9 +172,7 @@ test('speichert Änderungen und lädt externe Dateiänderungen im Editor neu ohn
 });
 
 test('exportiert PDF über den UI-Dialog in eine Test-Zieldatei', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mv-pdf-'));
-  const targetPdf = path.join(tempDir, 'toc-export.pdf');
-  tempDirs.add(tempDir);
+  const targetPdf = path.join(createTempDir('mv-pdf-'), 'toc-export.pdf');
 
   const { electronApp, window } = await launchApp('toc.md');
 

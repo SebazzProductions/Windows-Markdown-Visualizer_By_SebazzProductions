@@ -1,3 +1,4 @@
 * text=auto eol=lf
 *.ico binary
 *.png binary
+e2e/fixtures/crlf.md -text
