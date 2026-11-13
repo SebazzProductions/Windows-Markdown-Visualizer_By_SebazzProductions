@@ -67,6 +67,7 @@ async function launchApp(fixtureNameOrPath, { userDataDir } = {}) {
       ...process.env,
       CI: '1',
       MV_E2E: '1',
+      MV_LANG: 'de', // Tests erwarten deutsche Oberfläche, unabhängig von der Sprache des Runners
       MV_USER_DATA_DIR: userDataDir || createUserDataDir(),
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1'
     }

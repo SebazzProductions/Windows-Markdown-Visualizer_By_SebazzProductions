@@ -7,6 +7,8 @@ const LOCALES = require('../shared/locales');
 const { settings } = require('./settings');
 
 function systemLanguage() {
+  // Testläufe (und Nutzer, die es wünschen) können die Systemsprache per Umgebungsvariable festlegen
+  if (LOCALES.SUPPORTED.includes(process.env.MV_LANG)) return process.env.MV_LANG;
   try {
     const locale = String(app.getLocale() || '').toLowerCase();
     return locale.startsWith('de') ? 'de' : 'en';
